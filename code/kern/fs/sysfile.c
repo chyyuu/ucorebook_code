@@ -189,6 +189,62 @@ sysfile_chdir(const char *__path) {
 }
 
 int
+sysfile_mkdir(const char *__path) {
+    int ret;
+    char *path;
+    if ((ret = copy_path(&path, __path)) != 0) {
+        return ret;
+    }
+    ret = vfs_mkdir(path);
+    kfree(path);
+    return ret;
+}
+
+int
+sysfile_link(const char *__path1, const char *__path2) {
+    int ret;
+    char *old_path, *new_path;
+    if ((ret = copy_path(&old_path, __path1)) != 0) {
+        return ret;
+    }
+    if ((ret = copy_path(&new_path, __path2)) != 0) {
+        kfree(old_path);
+        return ret;
+    }
+    ret = vfs_link(old_path, new_path);
+    kfree(old_path), kfree(new_path);
+    return ret;
+}
+
+int
+sysfile_rename(const char *__path1, const char *__path2) {
+    int ret;
+    char *old_path, *new_path;
+    if ((ret = copy_path(&old_path, __path1)) != 0) {
+        return ret;
+    }
+    if ((ret = copy_path(&new_path, __path2)) != 0) {
+        kfree(old_path);
+        return ret;
+    }
+    ret = vfs_rename(old_path, new_path);
+    kfree(old_path), kfree(new_path);
+    return ret;
+}
+
+int
+sysfile_unlink(const char *__path) {
+    int ret;
+    char *path;
+    if ((ret = copy_path(&path, __path)) != 0) {
+        return ret;
+    }
+    ret = vfs_unlink(path);
+    kfree(path);
+    return ret;
+}
+
+int
 sysfile_getcwd(char *buf, size_t len) {
     struct mm_struct *mm = current->mm;
     if (len == 0) {

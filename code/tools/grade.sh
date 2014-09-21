@@ -446,6 +446,78 @@ run_test -prog 'sfs_dirtest1'                                           \
 
 show_part B
 
+run_test -prog 'sfs_filetest3'                                          \
+        'kernel_execve: pid = 3, name = "sfs_filetest3".'               \
+        '0: -   1      0          0  testfile'                          \
+        '1: -   2      1         14  testfile'                          \
+        '1: -   2      1         14  orz'                               \
+        'link test ok.'                                                 \
+        '2: -   1      1         14  testfile'                          \
+        'unlink test ok.'                                               \
+        '3: -   1      0          0  testfile'                          \
+    ! - '2: .......................  orz'                               \
+        'sfs_filetest3 pass.'                                           \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
+    ! - 'user panic at .*'
+
+run_test -prog 'sfs_dirtest2'                                           \
+        'kernel_execve: pid = 3, name = "sfs_dirtest2".'                \
+        '0: current: disk0:/test/'                                      \
+      - '0: d   2      .        768  .'                                 \
+      - '0: d   6      .       1536  ..'                                \
+        '0: -   1      0          0  testfile'                          \
+        '1: current: disk0:/test/'                                      \
+      - '1: d   3      .       1280  .'                                 \
+      - '1: d   3      .        768  dir0'                              \
+        '1: -   1      0          0  file1'                             \
+        '2: current: disk0:/test/'                                      \
+      - '2: d   3      .       1280  .'                                 \
+      - '2: d   3      .        768  dir0'                              \
+        '2: -   2      0          0  file1'                             \
+        '3: current: disk0:/test/dir0/dir1/'                            \
+      - '3: d   2      .        768  .'                                 \
+      - '3: d   3      .        768  ..'                                \
+        '3: -   2      0          0  file2'                             \
+        '4: current: disk0:/test/dir0/'                                 \
+      - '4: d   2      .        512  .'                                 \
+      - '4: d   3      .       1280  ..'                                \
+        '5: current: disk0:/test/'                                      \
+      - '5: d   2      .        768  .'                                 \
+      - '5: d   6      .       1536  ..'                                \
+        'sfs_dirtest2 pass.'                                            \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
+    ! - 'user panic at .*'
+
+run_test -prog 'sfs_dirtest3'                                           \
+        'kernel_execve: pid = 3, name = "sfs_dirtest3".'                \
+        '0: current: disk0:/test/'                                      \
+      - '0: d   2      .        768  .'                                 \
+      - '0: d   6      .       1536  ..'                                \
+        '0: -   1      0          0  testfile'                          \
+        '1: current: disk0:/test/dir0/dir1/'                            \
+      - '1: d   2      .        512  .'                                 \
+      - '1: d   3      .       1024  ..'                                \
+        '2: current: disk0:/test/dir0/dir1/'                            \
+      - '2: d   2      .        768  .'                                 \
+      - '2: d   3      .        768  ..'                                \
+        '2: -   1      1         28  file2'                             \
+        '3: current: disk0:/test/'                                      \
+      - '3: d   4      .       1280  .'                                 \
+      - '3: d   6      .       1536  ..'                                \
+      - '3: d   2      .        768  dir2'                              \
+      - '3: d   2      .        512  dir0'                              \
+        '4: current: disk0:/test/'                                      \
+      - '4: d   2      .        768  .'                                 \
+      - '4: d   6      .       1536  ..'                                \
+        'sfs_dirtest3 pass.'                                            \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
+    ! - 'user panic at .*'
+
+show_part C
+
 ## print final-score
 show_final
 
