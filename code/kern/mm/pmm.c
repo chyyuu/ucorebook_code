@@ -7,6 +7,7 @@
 #include <pmm.h>
 #include <buddy_pmm.h>
 #include <sync.h>
+#include <slab.h>
 #include <error.h>
 
 /* *
@@ -335,6 +336,8 @@ pmm_init(void) {
     check_boot_pgdir();
 
     print_pgdir();
+
+    slab_init();
 }
 
 //get_pte - get pte and return the kernel virtual address of this pte for la
