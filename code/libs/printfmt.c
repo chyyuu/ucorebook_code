@@ -23,6 +23,9 @@ static const char * const error_string[MAXERROR + 1] = {
     [E_NO_FREE_PROC]        "out of processes",
     [E_FAULT]               "segmentation fault",
     [E_SWAP_FAULT]          "swap disk read/write fault",
+    [E_INVAL_ELF]           "invalid elf file",
+    [E_KILLED]              "process is killed",
+    [E_PANIC]               "panic failure",
 };
 
 /* *

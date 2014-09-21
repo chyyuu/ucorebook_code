@@ -246,13 +246,14 @@ check_regexps() {
 }
 
 run_test() {
-    # usage: run_test [-tag <tag>] [-Ddef...] [-check <check>] checkargs ...
+    # usage: run_test [-tag <tag>] [-prog <prog>] [-Ddef...] [-check <check>] checkargs ...
     tag=
+    prog=
     check=check_regexps
     while true; do
         select=
         case $1 in
-            -tag)
+            -tag|-prog)
                 select=`expr substr $1 2 ${#1}`
                 eval $select='$2'
                 ;;
@@ -274,8 +275,17 @@ run_test() {
         shift
     fi
 
-    $make $makeopts touch > /dev/null 2>&1
-    build_run "$tag" "$defs"
+    if [ -z "$prog" ]; then
+        $make $makeopts touch > /dev/null 2>&1
+        args="$defs"
+    else
+        if [ -z "$tag" ]; then
+            tag="$prog"
+        fi
+        args="build-$prog $defs"
+    fi
+
+    build_run "$tag" "$args"
 
     check_result 'check result' "$check" "$@"
 }
@@ -313,42 +323,123 @@ qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 ## set break-function, default is readline
 brkfun=readline
 
+default_check() {
+    pts=7
+    check_regexps "$@"
+
+    pts=3
+    quick_check 'check output'                                  \
+        'check_alloc_page() succeeded!'                         \
+        'check_pgdir() succeeded!'                              \
+        'check_boot_pgdir() succeeded!'                         \
+        'check_slab() succeeded!'                               \
+        'check_vma_struct() succeeded!'                         \
+        'check_pgfault() succeeded!'                            \
+        'check_vmm() succeeded.'                                \
+        'check_swap() succeeded.'                               \
+        'check_mm_swap: step1, mm_map ok.'                      \
+        'check_mm_swap: step2, mm_unmap ok.'                    \
+        'check_mm_swap: step3, exit_mmap ok.'                   \
+        'check_mm_swap: step4, dup_mmap ok.'                    \
+        'check_mm_swap() succeeded.'                            \
+        'check_mm_shm_swap: step1, share memory ok.'            \
+        'check_mm_shm_swap: step2, dup_mmap ok.'                \
+        'check_mm_shm_swap() succeeded.'                        \
+        '++ setup timer interrupts'
+}
+
 ## check now!!
 
-quick_run 'Check PROCESS'
+run_test -prog 'badsegment' -check default_check                \
+        'kernel_execve: pid = 1, name = "badsegment".'          \
+      - 'trapframe at 0xc.......'                               \
+        'trap 0x0000000d General Protection'                    \
+        '  err  0x00000028'                                     \
+      - '  eip  0x008.....'                                     \
+      - '  esp  0xaff.....'                                     \
+        '  cs   0x----001b'                                     \
+        '  ss   0x----0023'                                     \
+    ! - 'user panic at .*'
 
-pts=5
-quick_check 'check pmm & vmm'                                   \
-    'check_alloc_page() succeeded!'                             \
-    'check_pgdir() succeeded!'                                  \
-    'check_boot_pgdir() succeeded!'                             \
-    'check_slab() succeeded!'                                   \
-    'check_vma_struct() succeeded!'                             \
-    'page fault at 0x00000100: K/W [no page found].'            \
-    'check_pgfault() succeeded!'                                \
-    'check_vmm() succeeded.'                                    \
-    'check_swap() succeeded.'
+run_test -prog 'divzero' -check default_check                   \
+        'kernel_execve: pid = 1, name = "divzero".'             \
+      - 'trapframe at 0xc.......'                               \
+        'trap 0x00000000 Divide error'                          \
+      - '  eip  0x008.....'                                     \
+      - '  esp  0xaff.....'                                     \
+        '  cs   0x----001b'                                     \
+        '  ss   0x----0023'                                     \
+    ! - 'user panic at .*'
+
+run_test -prog 'softint' -check default_check                   \
+        'kernel_execve: pid = 1, name = "softint".'             \
+      - 'trapframe at 0xc.......'                               \
+        'trap 0x0000000d General Protection'                    \
+        '  err  0x00000072'                                     \
+      - '  eip  0x008.....'                                     \
+      - '  esp  0xaff.....'                                     \
+        '  cs   0x----001b'                                     \
+        '  ss   0x----0023'                                     \
+    ! - 'user panic at .*'
 
 pts=10
-quick_check 'check mm_swap & mm_shm_swap'                       \
-    'check_mm_swap: step1, mm_map ok.'                          \
-    'check_mm_swap: step2, mm_unmap ok.'                        \
-    'check_mm_swap: step3, exit_mmap ok.'                       \
-    'check_mm_swap: step4, dup_mmap ok.'                        \
-    'check_mm_swap() succeeded.'                                \
-    'check_mm_shm_swap: step1, share memory ok.'                \
-    'check_mm_shm_swap: step2, dup_mmap ok.'                    \
-    'check_mm_shm_swap() succeeded.'
 
-pts=5
-quick_check 'check ticks'                                       \
-    '++ setup timer interrupts'
+run_test -prog 'faultread'                                      \
+        'kernel_execve: pid = 1, name = "faultread".'           \
+      - 'trapframe at 0xc.......'                               \
+        'trap 0x0000000e Page Fault'                            \
+        '  err  0x00000004'                                     \
+      - '  eip  0x008.....'                                     \
+    ! - 'user panic at .*'
 
-pts=30
-quick_check 'check initproc'                                    \
-    'this initproc, pid = 1, name = "init"'                     \
-    'To U: "Hello world!!".'                                    \
-    'To U: "en.., Bye, Bye. :)"'
+run_test -prog 'faultreadkernel'                                \
+        'kernel_execve: pid = 1, name = "faultreadkernel".'     \
+      - 'trapframe at 0xc.......'                               \
+        'trap 0x0000000e Page Fault'                            \
+        '  err  0x00000005'                                     \
+      - '  eip  0x008.....'                                     \
+    ! - 'user panic at .*'
+
+run_test -prog 'hello'                                          \
+        'kernel_execve: pid = 1, name = "hello".'               \
+        'Hello world!!.'                                        \
+        'I am process 1.'                                       \
+        'hello pass.'
+
+run_test -prog 'testbss'                                        \
+        'kernel_execve: pid = 1, name = "testbss".'             \
+        'Making sure bss works right...'                        \
+        'Yes, good.  Now doing a wild write off the end...'     \
+        'testbss may pass.'                                     \
+      - 'trapframe at 0xc.......'                               \
+        'trap 0x0000000e Page Fault'                            \
+        '  err  0x00000006'                                     \
+      - '  eip  0x008.....'                                     \
+        'killed by kernel.'                                     \
+    ! - 'user panic at .*'
+
+run_test -prog 'pgdir'                                          \
+        'kernel_execve: pid = 1, name = "pgdir".'               \
+        'I am 1, print pgdir.'                                  \
+        'PDE(001) 00800000-00c00000 00400000 urw'               \
+        '  |-- PTE(00002) 00800000-00802000 00002000 ur-'       \
+        '  |-- PTE(00001) 00802000-00803000 00001000 urw'       \
+        'PDE(001) afc00000-b0000000 00400000 urw'               \
+        '  |-- PTE(00001) affff000-b0000000 00001000 urw'       \
+        'PDE(0e0) c0000000-f8000000 38000000 urw'               \
+        '  |-- PTE(38000) c0000000-f8000000 38000000 -rw'       \
+        'pgdir pass.'
+
+run_test -prog 'yield'                                          \
+        'kernel_execve: pid = 1, name = "yield".'               \
+        'Hello, I am process 1.'                                \
+        'Back in process 1, iteration 0.'                       \
+        'Back in process 1, iteration 1.'                       \
+        'Back in process 1, iteration 2.'                       \
+        'Back in process 1, iteration 3.'                       \
+        'Back in process 1, iteration 4.'                       \
+        'All done in process 1.'                                \
+        'yield pass.'
 
 ## print final-score
 show_final

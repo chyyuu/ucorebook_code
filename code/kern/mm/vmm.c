@@ -9,6 +9,7 @@
 #include <x86.h>
 #include <swap.h>
 #include <shmem.h>
+#include <proc.h>
 
 /* 
   vmm design include two parts: mm_struct (mm) & vma_struct (vma)
@@ -54,6 +55,8 @@ mm_create(void) {
         mm->pgdir = NULL;
         mm->map_count = 0;
         mm->swap_address = 0;
+        set_mm_count(mm, 0);
+        lock_init(&(mm->mm_lock));
     }
     return mm;
 }
@@ -234,6 +237,7 @@ remove_vma_struct(struct mm_struct *mm, struct vma_struct *vma) {
 // mm_destroy - free mm and mm internal fields
 void
 mm_destroy(struct mm_struct *mm) {
+    assert(mm_count(mm) == 0);
     if (mm->mmap_tree != NULL) {
         rb_tree_destroy(mm->mmap_tree);
     }
@@ -407,7 +411,7 @@ dup_mmap(struct mm_struct *to, struct mm_struct *from) {
 
 void
 exit_mmap(struct mm_struct *mm) {
-    assert(mm != NULL);
+    assert(mm != NULL && mm_count(mm) == 0);
     pde_t *pgdir = mm->pgdir;
     list_entry_t *list = &(mm->mmap_list), *le = list;
     while ((le = list_next(le)) != list) {
@@ -584,6 +588,13 @@ check_pgfault(void) {
 // do_pgfault - interrupt handler to process the page fault execption
 int
 do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
+    if (mm == NULL) {
+        assert(current != NULL);
+        panic("page fault in kernel thread: pid = %d, %d %08x.\n",
+                current->pid, error_code, addr);
+    }
+    lock_mm(mm);
+
     int ret = -E_INVAL;
     struct vma_struct *vma = find_vma(mm, addr);
     if (vma == NULL || vma->vm_start > addr) {
@@ -688,6 +699,7 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     ret = 0;
 
 failed:
+    unlock_mm(mm);
     return ret;
 }
 

@@ -5,15 +5,17 @@
 #include <trap.h>
 #include <x86.h>
 #include <stdio.h>
+#include <kdebug.h>
 #include <assert.h>
+#include <sync.h>
+#include <monitor.h>
 #include <console.h>
 #include <vmm.h>
 #include <proc.h>
 #include <sched.h>
 #include <unistd.h>
-#include <sync.h>
-#include <monitor.h>
-#include <kdebug.h>
+#include <syscall.h>
+#include <error.h>
 
 #define TICK_NUM 30
 
@@ -30,6 +32,7 @@ idt_init(void) {
     for (i = 0; i < sizeof(idt) / sizeof(struct gatedesc); i ++) {
         SETGATE(idt[i], 1, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
+    SETGATE(idt[T_SYSCALL], 1, GD_KTEXT, __vectors[T_SYSCALL], DPL_USER);
     lidt(&idt_pd);
 }
 
@@ -135,11 +138,20 @@ print_pgfault(struct trapframe *tf) {
 static int
 pgfault_handler(struct trapframe *tf) {
     extern struct mm_struct *check_mm_struct;
-    print_pgfault(tf);
+    struct mm_struct *mm;
     if (check_mm_struct != NULL) {
-        return do_pgfault(check_mm_struct, tf->tf_err, rcr2());
+        assert(current == idleproc);
+        mm = check_mm_struct;
     }
-    panic("unhandled page fault.\n");
+    else {
+        if (current == NULL) {
+            print_trapframe(tf);
+            print_pgfault(tf);
+            panic("unhandled page fault.\n");
+        }
+        mm = current->mm;
+    }
+    return do_pgfault(mm, tf->tf_err, rcr2());
 }
 
 static void
@@ -156,8 +168,20 @@ trap_dispatch(struct trapframe *tf) {
     case T_PGFLT:
         if ((ret = pgfault_handler(tf)) != 0) {
             print_trapframe(tf);
-            panic("handle pgfault failed. %e\n", ret);
+            if (current == NULL) {
+                panic("handle pgfault failed. %e\n", ret);
+            }
+            else {
+                if (trap_in_kernel(tf)) {
+                    panic("handle pgfault failed in kernel mode. %e\n", ret);
+                }
+                cprintf("killed by kernel.\n");
+                do_exit(-E_KILLED);
+            }
         }
+        break;
+    case T_SYSCALL:
+        syscall();
         break;
     case IRQ_OFFSET + IRQ_TIMER:
         ticks ++;
@@ -182,11 +206,12 @@ trap_dispatch(struct trapframe *tf) {
         /* do nothing */
         break;
     default:
-        // in kernel, it must be a mistake
-        if ((tf->tf_cs & 3) == 0) {
-            print_trapframe(tf);
-            panic("unexpected trap in kernel.\n");
+        print_trapframe(tf);
+        if (current != NULL) {
+            cprintf("unhandled trap.\n");
+            do_exit(-E_KILLED);
         }
+        panic("unexpected trap in kernel.\n");
     }
 }
 

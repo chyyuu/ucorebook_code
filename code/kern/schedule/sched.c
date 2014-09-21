@@ -5,7 +5,7 @@
 
 void
 wakeup_proc(struct proc_struct *proc) {
-    assert(proc->state != PROC_ZOMBIE && proc->state != PROC_RUNNABLE);
+    assert(proc->state != PROC_ZOMBIE);
     proc->state = PROC_RUNNABLE;
 }
 

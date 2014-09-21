@@ -232,13 +232,71 @@ put_kstack(struct proc_struct *proc) {
     free_pages(kva2page((void *)(proc->kstack)), KSTACKPAGE);
 }
 
+// setup_pgdir - alloc one page as PDT
+static int
+setup_pgdir(struct mm_struct *mm) {
+    struct Page *page;
+    if ((page = alloc_page()) == NULL) {
+        return -E_NO_MEM;
+    }
+    pde_t *pgdir = page2kva(page);
+    memcpy(pgdir, boot_pgdir, PGSIZE);
+    pgdir[PDX(VPT)] = PADDR(pgdir) | PTE_P | PTE_W;
+    mm->pgdir = pgdir;
+    return 0;
+}
+
+// put_pgdir - free the memory space of PDT
+static void
+put_pgdir(struct mm_struct *mm) {
+    free_page(kva2page(mm->pgdir));
+}
+
 // copy_mm - process "proc" duplicate OR share process "current"'s mm according clone_flags
 //         - if clone_flags & CLONE_VM, then "share" ; else "duplicate"
 static int
 copy_mm(uint32_t clone_flags, struct proc_struct *proc) {
-    assert(current->mm == NULL);
-    /* do nothing in this project */
+    struct mm_struct *mm, *oldmm = current->mm;
+
+    /* current is a kernel thread */
+    if (oldmm == NULL) {
+        return 0;
+    }
+    if (clone_flags & CLONE_VM) {
+        mm = oldmm;
+        goto good_mm;
+    }
+
+    int ret = -E_NO_MEM;
+    if ((mm = mm_create()) == NULL) {
+        goto bad_mm;
+    }
+    if (setup_pgdir(mm) != 0) {
+        goto bad_pgdir_cleanup_mm;
+    }
+
+    lock_mm(oldmm);
+    {
+        ret = dup_mmap(mm, oldmm);
+    }
+    unlock_mm(oldmm);
+
+    if (ret != 0) {
+        goto bad_dup_cleanup_mmap;
+    }
+
+good_mm:
+    mm_count_inc(mm);
+    proc->mm = mm;
+    proc->cr3 = PADDR(mm->pgdir);
     return 0;
+bad_dup_cleanup_mmap:
+    exit_mmap(mm);
+    put_pgdir(mm);
+bad_pgdir_cleanup_mm:
+    mm_destroy(mm);
+bad_mm:
+    return ret;
 }
 
 // copy_thread - setup the trapframe on the  process's kernel stack top and
@@ -313,15 +371,237 @@ bad_fork_cleanup_proc:
 //   3. call scheduler to switch to other process
 int
 do_exit(int error_code) {
+    if (current == idleproc) {
+        panic("idleproc exit.\n");
+    }
+    if (current == initproc) {
+        panic("initproc exit.\n");
+    }
     panic("process exit!!.\n");
 }
+
+// load_icode -  called by sys_exec-->do_execve
+// 1. create a new mm for current process
+// 2. create a new PDT, and mm->pgdir= kernel virtual addr of PDT
+// 3. copy TEXT/DATA/BSS parts in binary to memory space of process
+// 4. call mm_map to setup user stack, and put parameters into user stack
+// 5. setup trapframe for user environment    
+static int
+load_icode(unsigned char *binary, size_t size) {
+    if (current->mm != NULL) {
+        panic("load_icode: current->mm must be empty.\n");
+    }
+
+    int ret = -E_NO_MEM;
+
+    struct mm_struct *mm;
+    if ((mm = mm_create()) == NULL) {
+        goto bad_mm;
+    }
+
+    if (setup_pgdir(mm) != 0) {
+        goto bad_pgdir_cleanup_mm;
+    }
+
+    struct Page *page;
+
+    struct elfhdr *elf = (struct elfhdr *)binary;
+    struct proghdr *ph = (struct proghdr *)(binary + elf->e_phoff);
+    if (elf->e_magic != ELF_MAGIC) {
+        ret = -E_INVAL_ELF;
+        goto bad_elf_cleanup_pgdir;
+    }
+
+    uint32_t vm_flags, perm;
+    struct proghdr *ph_end = ph + elf->e_phnum;
+    for (; ph < ph_end; ph ++) {
+        if (ph->p_type != ELF_PT_LOAD) {
+            continue ;
+        }
+        if (ph->p_filesz > ph->p_memsz) {
+            ret = -E_INVAL_ELF;
+            goto bad_cleanup_mmap;
+        }
+        if (ph->p_filesz == 0) {
+            continue ;
+        }
+        vm_flags = 0, perm = PTE_U;
+        if (ph->p_flags & ELF_PF_X) vm_flags |= VM_EXEC;
+        if (ph->p_flags & ELF_PF_W) vm_flags |= VM_WRITE;
+        if (ph->p_flags & ELF_PF_R) vm_flags |= VM_READ;
+        if (vm_flags & VM_WRITE) perm |= PTE_W;
+
+        if ((ret = mm_map(mm, ph->p_va, ph->p_memsz, vm_flags, NULL)) != 0) {
+            goto bad_cleanup_mmap;
+        }
+
+        unsigned char *from = binary + ph->p_offset;
+        size_t off, size;
+        uintptr_t start = ph->p_va, end, la = ROUNDDOWN(start, PGSIZE);
+
+        ret = -E_NO_MEM;
+
+        end = ph->p_va + ph->p_filesz;
+        while (start < end) {
+            if ((page = pgdir_alloc_page(mm->pgdir, la, perm)) == NULL) {
+                goto bad_cleanup_mmap;
+            }
+            off = start - la, size = PGSIZE - off, la += PGSIZE;
+            if (end < la) {
+                size -= la - end;
+            }
+            memcpy(page2kva(page) + off, from, size);
+            start += size, from += size;
+        }
+
+        end = ph->p_va + ph->p_memsz;
+
+        if (start < la) {
+            /* ph->p_memsz == ph->p_filesz */
+            if (start == end) {
+                continue ;
+            }
+            off = start + PGSIZE - la, size = PGSIZE - off;
+            if (end < la) {
+                size -= la - end;
+            }
+            memset(page2kva(page) + off, 0, size);
+            start += size;
+            assert((end < la && start == end) || (end >= la && start == la));
+        }
+
+        while (start < end) {
+            if ((page = pgdir_alloc_page(mm->pgdir, la, perm)) == NULL) {
+                goto bad_cleanup_mmap;
+            }
+            off = start - la, size = PGSIZE - off, la += PGSIZE;
+            if (end < la) {
+                size -= la - end;
+            }
+            memset(page2kva(page) + off, 0, size);
+            start += size;
+        }
+    }
+
+    vm_flags = VM_READ | VM_WRITE | VM_STACK;
+    if ((ret = mm_map(mm, USTACKTOP - USTACKSIZE, USTACKSIZE, vm_flags, NULL)) != 0) {
+        goto bad_cleanup_mmap;
+    }
+
+    mm_count_inc(mm);
+    current->mm = mm;
+    current->cr3 = PADDR(mm->pgdir);
+    lcr3(PADDR(mm->pgdir));
+
+    struct trapframe *tf = current->tf;
+    memset(tf, 0, sizeof(struct trapframe));
+    tf->tf_cs = USER_CS;
+    tf->tf_ds = USER_DS;
+    tf->tf_es = USER_DS;
+    tf->tf_ss = USER_DS;
+    tf->tf_esp = USTACKTOP;
+    tf->tf_eip = elf->e_entry;
+    tf->tf_eflags = FL_IF;
+    ret = 0;
+out:
+    return ret;
+bad_cleanup_mmap:
+    exit_mmap(mm);
+bad_elf_cleanup_pgdir:
+    put_pgdir(mm);
+bad_pgdir_cleanup_mm:
+    mm_destroy(mm);
+bad_mm:
+    goto out;
+}
+
+// do_execve - call exit_mmap(mm)&pug_pgdir(mm) to reclaim memory space of current process
+//           - call load_icode to setup new memory space accroding binary prog.
+int
+do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
+    struct mm_struct *mm = current->mm;
+    if (!user_mem_check(mm, (uintptr_t)name, len, 0)) {
+        return -E_INVAL;
+    }
+
+    if (len > PROC_NAME_LEN) {
+        len = PROC_NAME_LEN;
+    }
+
+    char local_name[PROC_NAME_LEN + 1];
+    memset(local_name, 0, sizeof(local_name));
+    memcpy(local_name, name, len);
+
+    if (mm != NULL) {
+        lcr3(boot_cr3);
+        if (mm_count_dec(mm) == 0) {
+            exit_mmap(mm);
+            put_pgdir(mm);
+            mm_destroy(mm);
+        }
+        current->mm = NULL;
+    }
+
+    int ret;
+    if ((ret = load_icode(binary, size)) != 0) {
+        goto execve_exit;
+    }
+    set_proc_name(current, local_name);
+    return 0;
+
+execve_exit:
+    do_exit(ret);
+    panic("already exit: %e.\n", ret);
+}
+
+// do_yield - ask the scheduler to reschedule
+int
+do_yield(void) {
+    current->need_resched = 1;
+    return 0;
+}
+
+// kernel_execve - do SYS_exec syscall to exec a user program called by user_main kernel_thread
+static int
+kernel_execve(const char *name, unsigned char *binary, size_t size) {
+    int ret, len = strlen(name);
+    asm volatile (
+        "int %1;"
+        : "=a" (ret)
+        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (len), "b" (binary), "D" (size)
+        : "memory");
+    return ret;
+}
+
+#define __KERNEL_EXECVE(name, binary, size) ({                          \
+            cprintf("kernel_execve: pid = %d, name = \"%s\".\n",        \
+                    current->pid, name);                                \
+            kernel_execve(name, binary, (size_t)(size));                \
+        })
+
+#define KERNEL_EXECVE(x) ({                                             \
+            extern unsigned char _binary_obj___user_##x##_out_start[],  \
+                _binary_obj___user_##x##_out_size[];                    \
+            __KERNEL_EXECVE(#x, _binary_obj___user_##x##_out_start,     \
+                            _binary_obj___user_##x##_out_size);         \
+        })
+
+#define __KERNEL_EXECVE2(x, xstart, xsize) ({                           \
+            extern unsigned char xstart[], xsize[];                     \
+            __KERNEL_EXECVE(#x, xstart, (size_t)xsize);                 \
+        })
+
+#define KERNEL_EXECVE2(x, xstart, xsize)        __KERNEL_EXECVE2(x, xstart, xsize)
 
 // init_main - the second kernel thread used to create kswapd_main & user_main kernel threads
 static int
 init_main(void *arg) {
-    cprintf("this initproc, pid = %d, name = \"%s\"\n", current->pid, get_proc_name(current));
-    cprintf("To U: \"%s\".\n", (const char *)arg);
-    cprintf("To U: \"en.., Bye, Bye. :)\"\n");
+#ifdef TEST
+    KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
+#else
+    KERNEL_EXECVE(hello);
+#endif
+    panic("kernel_execve failed.\n");
     return 0;
 }
 
@@ -349,7 +629,7 @@ proc_init(void) {
 
     current = idleproc;
 
-    int pid = kernel_thread(init_main, "Hello world!!", 0);
+    int pid = kernel_thread(init_main, NULL, 0);
     if (pid <= 0) {
         panic("create init_main failed.\n");
     }

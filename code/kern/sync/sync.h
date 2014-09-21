@@ -41,7 +41,6 @@ try_lock(lock_t *lock) {
 
 static inline void
 lock(lock_t *lock) {
-    // may deadlock
     while (!try_lock(lock)) {
         schedule();
     }

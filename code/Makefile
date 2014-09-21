@@ -1,4 +1,4 @@
-PROJ	:= 10
+PROJ	:= 10.1
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -76,6 +76,8 @@ ALLOBJS	:=
 ALLDEPS	:=
 TARGETS	:=
 
+USER_PREFIX	:= __user_
+
 include tools/function.mk
 
 listf_cc = $(call listf,$(1),$(CTYPE))
@@ -93,6 +95,8 @@ objfile = $(call toobj,$(1))
 asmfile = $(call cgtype,$(call toobj,$(1)),o,asm)
 outfile = $(call cgtype,$(call toobj,$(1)),o,out)
 symfile = $(call cgtype,$(call toobj,$(1)),o,sym)
+filename = $(basename $(notdir $(1)))
+ubinfile = $(call outfile,$(addprefix $(USER_PREFIX),$(call filename,$(1))))
 
 # for match pattern
 match = $(shell echo $(2) | $(AWK) '{for(i=1;i<=NF;i++){if(match("$(1)","^"$$(i)"$$")){exit 1;}}}'; echo $$?)
@@ -109,6 +113,37 @@ LIBDIR	+= libs
 $(call add_files_cc,$(call listf_cc,$(LIBDIR)),libs,)
 
 # -------------------------------------------------------------------
+# user programs
+
+UINCLUDE	+= user/include/ \
+			   user/libs/
+
+USRCDIR		+= user
+
+ULIBDIR		+= user/libs
+
+UCFLAGS		+= $(addprefix -I,$(UINCLUDE))
+USER_BINS	:=
+
+$(call add_files_cc,$(call listf_cc,$(ULIBDIR)),ulibs,$(UCFLAGS))
+$(call add_files_cc,$(call listf_cc,$(USRCDIR)),uprog,$(UCFLAGS))
+
+UOBJS	:= $(call read_packet,ulibs libs)
+
+define uprog_ld
+__user_bin__ := $$(call ubinfile,$(1))
+USER_BINS += $$(__user_bin__)
+$$(__user_bin__): tools/user.ld
+$$(__user_bin__): $$(UOBJS)
+$$(__user_bin__): $(1) | $$$$(dir $$$$@)
+	$(V)$(LD) $(LDFLAGS) -T tools/user.ld -o $$@ $$(UOBJS) $(1)
+	@$(OBJDUMP) -S $$@ > $$(call cgtype,$$<,o,asm)
+	@$(OBJDUMP) -t $$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$$$/d' > $$(call cgtype,$$<,o,sym)
+endef
+
+$(foreach p,$(call read_packet,uprog),$(eval $(call uprog_ld,$(p))))
+
+# -------------------------------------------------------------------
 # kernel
 
 KINCLUDE	+= kern/debug/ \
@@ -119,7 +154,8 @@ KINCLUDE	+= kern/debug/ \
 			   kern/sync/ \
 			   kern/fs/ \
 			   kern/process/ \
-			   kern/schedule/
+			   kern/schedule/ \
+			   kern/syscall
 
 KSRCDIR		+= kern/init \
 			   kern/libs \
@@ -130,7 +166,8 @@ KSRCDIR		+= kern/init \
 			   kern/sync \
 			   kern/fs \
 			   kern/process \
-			   kern/schedule
+			   kern/schedule \
+			   kern/syscall
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
@@ -139,13 +176,13 @@ $(call add_files_cc,$(call listf_cc,$(KSRCDIR)),kernel,$(KCFLAGS))
 KOBJS	= $(call read_packet,kernel libs)
 
 # create kernel target
-kernel = $(call totarget,kernel)
+kernel	= $(call totarget,kernel)
 
 $(kernel): tools/kernel.ld
 
-$(kernel): $(KOBJS)
+$(kernel): $(KOBJS) $(USER_BINS)
 	@echo + ld $@
-	$(V)$(LD) $(LDFLAGS) -T tools/kernel.ld -o $@ $(KOBJS)
+	$(V)$(LD) $(LDFLAGS) -T tools/kernel.ld -o $@ $(KOBJS) -b binary $(USER_BINS)
 	@$(OBJDUMP) -S $@ > $(call asmfile,kernel)
 	@$(OBJDUMP) -t $@ | $(SED) '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(call symfile,kernel)
 
@@ -205,6 +242,8 @@ IGNORE_ALLDEPS	= clean \
 				  grade \
 				  touch \
 				  print-.+ \
+				  run-.+ \
+				  build-.+ \
 				  handin
 
 ifeq ($(call match,$(MAKECMDGOALS),$(IGNORE_ALLDEPS)),0)
@@ -238,13 +277,22 @@ debug-nox: $(UCOREIMG) $(SWAPIMG)
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
 
+RUN_PREFIX	:= _binary_$(OBJDIR)_$(USER_PREFIX)
+MAKEOPTS	:= --quiet --no-print-directory
+
+run-%: build-%
+	$(V)$(QEMU) -parallel stdio $(QEMUOPTS) -serial null
+
+build-%: touch
+	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=$* -DTESTSTART=$(RUN_PREFIX)$*_out_start -DTESTSIZE=$(RUN_PREFIX)$*_out_size"
+
 .PHONY: grade touch
 
 GRADE_GDB_IN	:= .gdb.in
 GRADE_QEMU_OUT	:= .qemu.out
 HANDIN			:= proj$(PROJ)-handin.tar.gz
 
-TOUCH_FILES		:=
+TOUCH_FILES		:= kern/process/proc.c
 
 MAKEOPTS		:= --quiet --no-print-directory
 

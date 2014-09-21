@@ -7,6 +7,7 @@
 #include <rb_tree.h>
 #include <sync.h>
 #include <shmem.h>
+#include <atomic.h>
 
 //pre define
 struct mm_struct;
@@ -43,6 +44,8 @@ struct mm_struct {
     pde_t *pgdir;                  // the PDT of these vma
     int map_count;                 // the count of these vma
     uintptr_t swap_address;
+    atomic_t mm_count;
+    lock_t mm_lock;
 };
 
 #define RB_MIN_MAP_COUNT        32 // If the count of vma >32 then redblack tree link is used
@@ -66,6 +69,40 @@ uintptr_t get_unmapped_area(struct mm_struct *mm, size_t len);
 
 int do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr);
 bool user_mem_check(struct mm_struct *mm, uintptr_t start, size_t len, bool write);
+
+static inline int
+mm_count(struct mm_struct *mm) {
+    return atomic_read(&(mm->mm_count));
+}
+
+static inline void
+set_mm_count(struct mm_struct *mm, int val) {
+    atomic_set(&(mm->mm_count), val);
+}
+
+static inline int
+mm_count_inc(struct mm_struct *mm) {
+    return atomic_add_return(&(mm->mm_count), 1);
+}
+
+static inline int
+mm_count_dec(struct mm_struct *mm) {
+    return atomic_sub_return(&(mm->mm_count), 1);
+}
+
+static inline void
+lock_mm(struct mm_struct *mm) {
+    if (mm != NULL) {
+        lock(&(mm->mm_lock));
+    }
+}
+
+static inline void
+unlock_mm(struct mm_struct *mm) {
+    if (mm != NULL) {
+        unlock(&(mm->mm_lock));
+    }
+}
 
 #endif /* !__KERN_MM_VMM_H__ */
 

@@ -44,12 +44,20 @@
  *     KERNBASE ------------> +---------------------------------+ 0xC0000000
  *                            |        Invalid Memory (*)       | --/--
  *     USERTOP -------------> +---------------------------------+ 0xB0000000
+ *                            |           User stack            |
+ *                            +---------------------------------+
  *                            |                                 |
  *                            :                                 :
  *                            |         ~~~~~~~~~~~~~~~~        |
  *                            :                                 :
  *                            |                                 |
- *     USERBASE ------------> +---------------------------------+ 0x00200000
+ *                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *                            |       User Program & Heap       |
+ *     UTEXT ---------------> +---------------------------------+ 0x00800000
+ *                            |        Invalid Memory (*)       | --/--
+ *                            |  - - - - - - - - - - - - - - -  |
+ *                            |    User STAB Data (optional)    |
+ *     USERBASE, USTAB------> +---------------------------------+ 0x00200000
  *                            |        Invalid Memory (*)       | --/--
  *     0 -------------------> +---------------------------------+ 0x00000000
  * (*) Note: The kernel ensures that "Invalid Memory" is *never* mapped.
@@ -75,8 +83,13 @@
 #define KSTACKSIZE          (KSTACKPAGE * PGSIZE)       // sizeof kernel stack
 
 #define USERTOP             0xB0000000
+#define USTACKTOP           USERTOP
+#define USTACKPAGE          256                         // # of pages in user stack
+#define USTACKSIZE          (USTACKPAGE * PGSIZE)       // sizeof user stack
 
 #define USERBASE            0x00200000
+#define UTEXT               0x00800000                  // where user programs generally begin
+#define USTAB               USERBASE                    // the location of the user STABS data structure
 
 #define USER_ACCESS(start, end)                     \
     (USERBASE <= (start) && (start) < (end) && (end) <= USERTOP)
