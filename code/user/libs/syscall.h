@@ -42,6 +42,8 @@ int sys_read(int fd, void *base, size_t len);
 int sys_write(int fd, void *base, size_t len);
 int sys_fstat(int fd, struct stat *stat);
 int sys_dup(int fd1, int fd2);
+int sys_pipe(int *fd_store);
+int sys_mkfifo(const char *name, uint32_t open_flags);
 
 #endif /* !__USER_LIBS_SYSCALL_H__ */
 

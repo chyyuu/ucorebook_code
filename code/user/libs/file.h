@@ -12,6 +12,8 @@ int write(int fd, void *base, size_t len);
 int fstat(int fd, struct stat *stat);
 int dup(int fd);
 int dup2(int fd1, int fd2);
+int pipe(int *fd_store);
+int mkfifo(const char *name, uint32_t open_flags);
 
 void print_stat(const char *name, int fd, struct stat *stat);
 

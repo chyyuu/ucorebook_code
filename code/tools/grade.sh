@@ -377,6 +377,40 @@ run_test -prog 'fread_test2' -check default_check               \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
+pts=30
+timeout=300
+
+run_test -prog 'pipetest'                                       \
+        'kernel_execve: pid = 3, name = "pipetest".'            \
+        'child write ok'                                        \
+        'parent read ok'                                        \
+        'pipetest step1 pass.'                                  \
+        'pipetest step2 pass.'                                  \
+        'pipetest step3 pass.'                                  \
+        'pipetest step4 pass.'                                  \
+        'pipetest pass.'                                        \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'pipetest2'                                      \
+        'kernel_execve: pid = 3, name = "pipetest2".'           \
+        '0 reads 200000'                                        \
+        '1 reads 200000'                                        \
+        '2 reads 200000'                                        \
+        '3 reads 200000'                                        \
+        '4 reads 200000'                                        \
+        '5 reads 200000'                                        \
+        '6 reads 200000'                                        \
+        '7 reads 200000'                                        \
+        '8 reads 200000'                                        \
+        '9 reads 200000'                                        \
+        'pipetest2 pass.'                                       \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    !   'pipe is closed, too early.'                            \
+    ! - 'user panic at .*'
+
 ## print final-score
 show_final
 

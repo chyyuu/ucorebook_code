@@ -1,6 +1,7 @@
 #include <types.h>
 #include <stdio.h>
 #include <string.h>
+#include <slab.h>
 #include <vfs.h>
 #include <inode.h>
 #include <sem.h>
@@ -10,6 +11,15 @@ static semaphore_t bootfs_sem;
 static struct inode *bootfs_node = NULL;
 
 extern void vfs_devlist_init(void);
+
+struct fs *
+__alloc_fs(int type) {
+    struct fs *fs;
+    if ((fs = kmalloc(sizeof(struct fs))) != NULL) {
+        fs->fs_type = type;
+    }
+    return fs;
+}
 
 void
 vfs_init(void) {

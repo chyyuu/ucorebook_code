@@ -4,6 +4,7 @@
 #include <vfs.h>
 #include <dev.h>
 #include <file.h>
+#include <pipe.h>
 #include <inode.h>
 #include <assert.h>
 
@@ -11,6 +12,7 @@ void
 fs_init(void) {
     vfs_init();
     dev_init();
+    pipe_init();
 }
 
 void

@@ -1,4 +1,5 @@
 #include <types.h>
+#include <string.h>
 #include <slab.h>
 #include <vmm.h>
 #include <proc.h>
@@ -167,5 +168,39 @@ sysfile_fstat(int fd, struct stat *__stat) {
 int
 sysfile_dup(int fd1, int fd2) {
     return file_dup(fd1, fd2);
+}
+
+int
+sysfile_pipe(int *fd_store) {
+    struct mm_struct *mm = current->mm;
+    int ret, fd[2];
+    if (!user_mem_check(mm, (uintptr_t)fd_store, sizeof(fd), 1)) {
+        return -E_INVAL;
+    }
+    if ((ret = file_pipe(fd)) == 0) {
+        lock_mm(mm);
+        {
+            if (!copy_to_user(mm, fd_store, fd, sizeof(fd))) {
+                ret = -E_INVAL;
+            }
+        }
+        unlock_mm(mm);
+        if (ret != 0) {
+            file_close(fd[0]), file_close(fd[1]);
+        }
+    }
+    return ret;
+}
+
+int
+sysfile_mkfifo(const char *__name, uint32_t open_flags) {
+    int ret;
+    char *name;
+    if ((ret = copy_path(&name, __name)) != 0) {
+        return ret;
+    }
+    ret = file_mkfifo(name, open_flags);
+    kfree(name);
+    return ret;
 }
 

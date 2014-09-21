@@ -3,6 +3,7 @@
 
 #include <types.h>
 #include <fs.h>
+#include <pipe.h>
 
 struct inode;   // abstract structure for an on-disk file (inode.h)
 struct device;  // abstract structure for a device (dev.h)
@@ -33,12 +34,35 @@ struct iobuf;   // kernel or userspace I/O buffer (iobuf.h)
  */
 struct fs {
     union {
+        struct pipe_fs __pipe_info;
     } fs_info;
+    enum {
+        fs_type_pipe_info = 0x5678,
+    } fs_type;
     int (*fs_sync)(struct fs *fs);
     struct inode *(*fs_get_root)(struct fs *fs);
     int (*fs_unmount)(struct fs *fs);
     void (*fs_cleanup)(struct fs *fs);
 };
+
+#define __fs_type(type)                                             fs_type_##type##_info
+
+#define check_fs_type(fs, type)                                     ((fs)->fs_type == __fs_type(type))
+
+#define __fsop_info(_fs, type) ({                                   \
+            struct fs *__fs = (_fs);                                \
+            assert(__fs != NULL && check_fs_type(__fs, type));      \
+            &(__fs->fs_info.__##type##_info);                       \
+        })
+
+#define fsop_info(fs, type)                 __fsop_info(fs, type)
+
+#define info2fs(info, type)                                         \
+    to_struct((info), struct fs, fs_info.__##type##_info)
+
+struct fs *__alloc_fs(int type);
+
+#define alloc_fs(type)                                              __alloc_fs(__fs_type(type))
 
 // Macros to shorten the calling sequences.
 #define fsop_sync(fs)                       ((fs)->fs_sync(fs))

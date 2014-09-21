@@ -1,4 +1,6 @@
 #include <types.h>
+#include <string.h>
+#include <slab.h>
 #include <vfs.h>
 #include <proc.h>
 #include <file.h>
@@ -267,5 +269,82 @@ file_dup(int fd1, int fd2) {
     }
     filemap_dup(file2, file1);
     return file2->fd;
+}
+
+int
+file_pipe(int fd[]) {
+    int ret;
+    struct file *file[2] = {NULL, NULL};
+    if ((ret = filemap_alloc(NO_FD, &file[0])) != 0) {
+        goto failed_cleanup;
+    }
+    if ((ret = filemap_alloc(NO_FD, &file[1])) != 0) {
+        goto failed_cleanup;
+    }
+
+    if ((ret = pipe_open(&(file[0]->node), &(file[1]->node))) != 0) {
+        goto failed_cleanup;
+    }
+    file[0]->pos = 0;
+    file[0]->readable = 1, file[0]->writable = 0;
+    filemap_open(file[0]);
+
+    file[1]->pos = 0;
+    file[1]->readable = 0, file[1]->writable = 1;
+    filemap_open(file[1]);
+
+    fd[0] = file[0]->fd, fd[1] = file[1]->fd;
+    return 0;
+
+failed_cleanup:
+    if (file[0] != NULL) {
+        filemap_free(file[0]);
+    }
+    if (file[1] != NULL) {
+        filemap_free(file[1]);
+    }
+    return ret;
+}
+
+int
+file_mkfifo(const char *__name, uint32_t open_flags) {
+    bool readonly = 0;
+    switch (open_flags & O_ACCMODE) {
+    case O_RDONLY:
+        readonly = 1;
+    case O_WRONLY:
+        break;
+    default:
+        return -E_INVAL;
+    }
+
+    int ret;
+    struct file *file;
+    if ((ret = filemap_alloc(NO_FD, &file)) != 0) {
+        return ret;
+    }
+
+    char *name;
+    const char *device = readonly ? "pipe:r_" : "pipe:w_";
+
+    if ((name = stradd(device, __name)) == NULL) {
+        ret = -E_NO_MEM;
+        goto failed_cleanup_file;
+    }
+
+    if ((ret = vfs_open(name, open_flags, &(file->node))) != 0) {
+        goto failed_cleanup_name;
+    }
+    file->pos = 0;
+    file->readable = readonly, file->writable = !readonly;
+    filemap_open(file);
+    kfree(name);
+    return file->fd;
+
+failed_cleanup_name:
+    kfree(name);
+failed_cleanup_file:
+    filemap_free(file);
+    return ret;
 }
 

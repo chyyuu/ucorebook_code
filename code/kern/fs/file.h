@@ -34,6 +34,8 @@ int file_read(int fd, void *base, size_t len, size_t *copied_store);
 int file_write(int fd, void *base, size_t len, size_t *copied_store);
 int file_fstat(int fd, struct stat *stat);
 int file_dup(int fd1, int fd2);
+int file_pipe(int fd[]);
+int file_mkfifo(const char *name, uint32_t open_flags);
 
 static inline int
 fopen_count(struct file *file) {
