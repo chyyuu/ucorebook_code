@@ -99,6 +99,8 @@ alloc_proc(void) {
         proc->cr3 = boot_cr3;
         proc->flags = 0;
         memset(proc->name, 0, PROC_NAME_LEN);
+        proc->wait_state = 0;
+        proc->cptr = proc->optr = proc->yptr = NULL;
     }
     return proc;
 }
@@ -116,6 +118,34 @@ get_proc_name(struct proc_struct *proc) {
     static char name[PROC_NAME_LEN + 1];
     memset(name, 0, sizeof(name));
     return memcpy(name, proc->name, PROC_NAME_LEN);
+}
+
+// set_links - set the relation links of process
+static void
+set_links(struct proc_struct *proc) {
+    list_add(&proc_list, &(proc->list_link));
+    proc->yptr = NULL;
+    if ((proc->optr = proc->parent->cptr) != NULL) {
+        proc->optr->yptr = proc;
+    }
+    proc->parent->cptr = proc;
+    nr_process ++;
+}
+
+// remove_links - clean the relation links of process
+static void
+remove_links(struct proc_struct *proc) {
+    list_del(&(proc->list_link));
+    if (proc->optr != NULL) {
+        proc->optr->yptr = proc->yptr;
+    }
+    if (proc->yptr != NULL) {
+        proc->yptr->optr = proc->optr;
+    }
+    else {
+       proc->parent->cptr = proc->optr;
+    }
+    nr_process --;
 }
 
 // get_pid - alloc a unique pid for process
@@ -183,6 +213,12 @@ forkret(void) {
 static void
 hash_proc(struct proc_struct *proc) {
     list_add(hash_list + pid_hashfn(proc->pid), &(proc->hash_link));
+}
+
+// unhash_proc - delete proc from proc hash_list
+static void
+unhash_proc(struct proc_struct *proc) {
+    list_del(&(proc->hash_link));
 }
 
 // find_proc - find proc frome proc hash_list according to pid
@@ -333,6 +369,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     }
 
     proc->parent = current;
+    assert(current->wait_state == 0);
 
     if (setup_kstack(proc) != 0) {
         goto bad_fork_cleanup_proc;
@@ -347,8 +384,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     {
         proc->pid = get_pid();
         hash_proc(proc);
-        list_add(&proc_list, &(proc->list_link));
-        nr_process ++;
+        set_links(proc);
     }
     local_intr_restore(intr_flag);
 
@@ -377,7 +413,49 @@ do_exit(int error_code) {
     if (current == initproc) {
         panic("initproc exit.\n");
     }
-    panic("process exit!!.\n");
+
+    struct mm_struct *mm = current->mm;
+    if (mm != NULL) {
+        lcr3(boot_cr3);
+        if (mm_count_dec(mm) == 0) {
+            exit_mmap(mm);
+            put_pgdir(mm);
+            mm_destroy(mm);
+        }
+        current->mm = NULL;
+    }
+    current->state = PROC_ZOMBIE;
+    current->exit_code = error_code;
+
+    bool intr_flag;
+    struct proc_struct *proc;
+    local_intr_save(intr_flag);
+    {
+        proc = current->parent;
+        if (proc->wait_state == WT_CHILD) {
+            wakeup_proc(proc);
+        }
+        while (current->cptr != NULL) {
+            proc = current->cptr;
+            current->cptr = proc->optr;
+
+            proc->yptr = NULL;
+            if ((proc->optr = initproc->cptr) != NULL) {
+                initproc->cptr->yptr = proc;
+            }
+            proc->parent = initproc;
+            initproc->cptr = proc;
+            if (proc->state == PROC_ZOMBIE) {
+                if (initproc->wait_state == WT_CHILD) {
+                    wakeup_proc(initproc);
+                }
+            }
+        }
+    }
+    local_intr_restore(intr_flag);
+
+    schedule();
+    panic("do_exit will not return!! %d.\n", current->pid);
 }
 
 // load_icode -  called by sys_exec-->do_execve
@@ -561,6 +639,86 @@ do_yield(void) {
     return 0;
 }
 
+// do_wait - wait one OR any children with PROC_ZOMBIE state, and free memory space of kernel stack
+//         - proc struct of this child.
+// NOTE: only after do_wait function, all resources of the child proces are free.
+int
+do_wait(int pid, int *code_store) {
+    struct mm_struct *mm = current->mm;
+    if (code_store != NULL) {
+        if (!user_mem_check(mm, (uintptr_t)code_store, sizeof(int), 1)) {
+            return -E_INVAL;
+        }
+    }
+
+    struct proc_struct *proc;
+    bool intr_flag, haskid;
+repeat:
+    haskid = 0;
+    if (pid != 0) {
+        proc = find_proc(pid);
+        if (proc != NULL && proc->parent == current) {
+            haskid = 1;
+            if (proc->state == PROC_ZOMBIE) {
+                goto found;
+            }
+        }
+    }
+    else {
+        proc = current->cptr;
+        for (; proc != NULL; proc = proc->optr) {
+            haskid = 1;
+            if (proc->state == PROC_ZOMBIE) {
+                goto found;
+            }
+        }
+    }
+    if (haskid) {
+        current->state = PROC_SLEEPING;
+        current->wait_state = WT_CHILD;
+        schedule();
+        if (current->flags & PF_EXITING) {
+            do_exit(-E_KILLED);
+        }
+        goto repeat;
+    }
+    return -E_BAD_PROC;
+
+found:
+    if (proc == idleproc || proc == initproc) {
+        panic("wait idleproc or initproc.\n");
+    }
+    if (code_store != NULL) {
+        *code_store = proc->exit_code;
+    }
+    local_intr_save(intr_flag);
+    {
+        unhash_proc(proc);
+        remove_links(proc);
+    }
+    local_intr_restore(intr_flag);
+    put_kstack(proc);
+    kfree(proc);
+    return 0;
+}
+
+// do_kill - kill process with pid by set this process's flags with PF_EXITING
+int
+do_kill(int pid) {
+    struct proc_struct *proc;
+    if ((proc = find_proc(pid)) != NULL) {
+        if (!(proc->flags & PF_EXITING)) {
+            proc->flags |= PF_EXITING;
+            if (proc->wait_state & WT_INTERRUPTED) {
+                wakeup_proc(proc);
+            }
+            return 0;
+        }
+        return -E_KILLED;
+    }
+    return -E_INVAL;
+}
+
 // kernel_execve - do SYS_exec syscall to exec a user program called by user_main kernel_thread
 static int
 kernel_execve(const char *name, unsigned char *binary, size_t size) {
@@ -593,15 +751,40 @@ kernel_execve(const char *name, unsigned char *binary, size_t size) {
 
 #define KERNEL_EXECVE2(x, xstart, xsize)        __KERNEL_EXECVE2(x, xstart, xsize)
 
-// init_main - the second kernel thread used to create kswapd_main & user_main kernel threads
+// user_main - kernel thread used to exec a user program
 static int
-init_main(void *arg) {
+user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(hello);
+    KERNEL_EXECVE(exit);
 #endif
-    panic("kernel_execve failed.\n");
+    panic("user_main execve failed.\n");
+}
+
+// init_main - the second kernel thread used to create kswapd_main & user_main kernel threads
+static int
+init_main(void *arg) {
+    size_t nr_free_pages_store = nr_free_pages();
+    size_t slab_allocated_store = slab_allocated();
+
+    int pid = kernel_thread(user_main, NULL, 0);
+    if (pid <= 0) {
+        panic("create user_main failed.\n");
+    }
+
+    while (do_wait(0, NULL) == 0) {
+        schedule();
+    }
+
+    cprintf("all user-mode processes have quit.\n");
+    assert(initproc->cptr == NULL && initproc->yptr == NULL && initproc->optr == NULL);
+    assert(nr_process == 2);
+    assert(list_next(&proc_list) == &(initproc->list_link));
+    assert(list_prev(&proc_list) == &(initproc->list_link));
+    assert(nr_free_pages_store == nr_free_pages());
+    assert(slab_allocated_store == slab_allocated());
+    cprintf("init check memory pass.\n");
     return 0;
 }
 

@@ -186,7 +186,6 @@ trap_dispatch(struct trapframe *tf) {
     case IRQ_OFFSET + IRQ_TIMER:
         ticks ++;
         if (ticks % TICK_NUM == 0) {
-            cprintf("%d ticks\n",TICK_NUM);
             assert(current != NULL);
             current->need_resched = 1;
         }
@@ -232,6 +231,9 @@ trap(struct trapframe *tf) {
 
         current->tf = otf;
         if (!in_kernel) {
+            if (current->flags & PF_EXITING) {
+                do_exit(-E_KILLED);
+            }
             if (current->need_resched) {
                 schedule();
             }

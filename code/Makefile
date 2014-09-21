@@ -1,4 +1,4 @@
-PROJ	:= 10.1
+PROJ	:= 10.2
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -155,7 +155,7 @@ KINCLUDE	+= kern/debug/ \
 			   kern/fs/ \
 			   kern/process/ \
 			   kern/schedule/ \
-			   kern/syscall
+			   kern/syscall/
 
 KSRCDIR		+= kern/init \
 			   kern/libs \

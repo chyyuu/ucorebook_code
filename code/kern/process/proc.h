@@ -54,7 +54,15 @@ struct proc_struct {
     char name[PROC_NAME_LEN + 1];               // Process name
     list_entry_t list_link;                     // Process link list 
     list_entry_t hash_link;                     // Process hash list
+    int exit_code;
+    uint32_t wait_state;
+    struct proc_struct *cptr, *yptr, *optr;
 };
+
+#define PF_EXITING                  0x00000001      // getting shutdown
+
+#define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)
+#define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
 
 #define le2proc(le, member)         \
     to_struct((le), struct proc_struct, member)
@@ -74,6 +82,8 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf);
 int do_exit(int error_code);
 int do_execve(const char *name, size_t len, unsigned char *binary, size_t size);
 int do_yield(void);
+int do_wait(int pid, int *code_store);
+int do_kill(int pid);
 
 #endif /* !__KERN_PROCESS_PROC_H__ */
 
