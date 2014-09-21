@@ -31,8 +31,18 @@ yield(void) {
 }
 
 int
+sleep(unsigned int time) {
+    return sys_sleep(time);
+}
+
+int
 kill(int pid) {
     return sys_kill(pid);
+}
+
+unsigned int
+gettime_msec(void) {
+    return (unsigned int)sys_gettime();
 }
 
 int

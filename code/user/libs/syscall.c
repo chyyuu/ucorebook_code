@@ -52,8 +52,18 @@ sys_yield(void) {
 }
 
 int
+sys_sleep(unsigned int time) {
+    return syscall(SYS_sleep, time);
+}
+
+int
 sys_kill(int pid) {
     return syscall(SYS_kill, pid);
+}
+
+size_t
+sys_gettime(void) {
+    return syscall(SYS_gettime);
 }
 
 int

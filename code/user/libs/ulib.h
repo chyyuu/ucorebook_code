@@ -26,7 +26,9 @@ int fork(void);
 int wait(void);
 int waitpid(int pid, int *store);
 void yield(void);
+int sleep(unsigned int time);
 int kill(int pid);
+unsigned int gettime_msec(void);
 int getpid(void);
 void print_pgdir(void);
 

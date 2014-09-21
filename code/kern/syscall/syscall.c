@@ -3,6 +3,7 @@
 #include <trap.h>
 #include <stdio.h>
 #include <pmm.h>
+#include <clock.h>
 #include <assert.h>
 
 static uint32_t
@@ -40,9 +41,20 @@ sys_yield(uint32_t arg[]) {
 }
 
 static uint32_t
+sys_sleep(uint32_t arg[]) {
+    unsigned int time = (unsigned int)arg[0];
+    return do_sleep(time);
+}
+
+static uint32_t
 sys_kill(uint32_t arg[]) {
     int pid = (int)arg[0];
     return do_kill(pid);
+}
+
+static uint32_t
+sys_gettime(uint32_t arg[]) {
+    return ticks;
 }
 
 static uint32_t
@@ -76,6 +88,8 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exec]              sys_exec,
     [SYS_yield]             sys_yield,
     [SYS_kill]              sys_kill,
+    [SYS_sleep]             sys_sleep,
+    [SYS_gettime]           sys_gettime,
     [SYS_getpid]            sys_getpid,
     [SYS_brk]               sys_brk,
     [SYS_putc]              sys_putc,

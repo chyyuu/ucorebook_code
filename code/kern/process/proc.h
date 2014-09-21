@@ -61,7 +61,9 @@ struct proc_struct {
 
 #define PF_EXITING                  0x00000001      // getting shutdown
 
-#define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)
+//the wait state
+#define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)  // wait child process
+#define WT_TIMER                    (0x00000002 | WT_INTERRUPTED)  // wait timer
 #define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
 
 #define le2proc(le, member)         \
@@ -85,6 +87,7 @@ int do_yield(void);
 int do_wait(int pid, int *code_store);
 int do_kill(int pid);
 int do_brk(uintptr_t *brk_store);
+int do_sleep(unsigned int time);
 
 #endif /* !__KERN_PROCESS_PROC_H__ */
 

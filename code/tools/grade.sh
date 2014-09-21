@@ -383,7 +383,7 @@ run_test -prog 'waitkill' -check default_check                  \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-pts=10
+pts=5
 
 run_test -prog 'forktest'                                       \
         'kernel_execve: pid = 2, name = "forktest".'            \
@@ -437,8 +437,6 @@ run_test -prog 'forktree'                                       \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'
 
-pts=15
-
 run_test -prog 'badbrktest'                                     \
         'kernel_execve: pid = 2, name = "badbrktest".'          \
         'I am child.'                                           \
@@ -455,8 +453,6 @@ run_test -prog 'badbrktest'                                     \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-pts=15
-
 run_test -prog 'brkfreetest'                                    \
         'kernel_execve: pid = 2, name = "brkfreetest".'         \
         'page fault!!'                                          \
@@ -470,8 +466,6 @@ run_test -prog 'brkfreetest'                                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-pts=15
-
 run_test -prog 'brktest'                                        \
         'kernel_execve: pid = 2, name = "brktest".'             \
         'I am going to eat out all the mem, MU HA HA!!.'        \
@@ -482,6 +476,33 @@ run_test -prog 'brktest'                                        \
         'brktest pass.'                                         \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'
+
+pts=10
+timeout=240
+
+run_test -prog 'sleep'                                          \
+        'kernel_execve: pid = 2, name = "sleep".'               \
+        'I am child and I will eat out all the memory.'         \
+        'I ate 1000 slots.'                                     \
+        'I ate 5000 slots.'                                     \
+        'sleep 1 x 100 slices.'                                 \
+        'sleep 3 x 100 slices.'                                 \
+        'sleep 7 x 100 slices.'                                 \
+        'sleep 10 x 100 slices.'                                \
+      - 'use 1... msecs.'                                       \
+        'sleep pass.'                                           \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    !   '  trap 0x0000000e Page Fault'                          \
+    !   'killed by kernel.'                                     \
+    ! - 'user panic at .*'
+
+run_test -prog 'sleepkill'                                      \
+        'kernel_execve: pid = 2, name = "sleepkill".'           \
+        'sleepkill pass.'                                       \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
 
 ## print final-score
 show_final
