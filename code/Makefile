@@ -155,7 +155,8 @@ KINCLUDE	+= kern/debug/ \
 			   kern/fs/ \
 			   kern/process/ \
 			   kern/schedule/ \
-			   kern/syscall/
+			   kern/syscall/ \
+			   kern/
 
 KSRCDIR		+= kern/init \
 			   kern/libs \

@@ -33,6 +33,12 @@
 #define SYS_mbox_recv       52
 #define SYS_mbox_free       53
 #define SYS_mbox_info       54
+#define SYS_monitor_alloc   55
+#define SYS_monitor_free    56
+#define SYS_monitor_enter   57
+#define SYS_monitor_leave   58
+#define SYS_monitor_cond_wait   59
+#define SYS_monitor_cond_signal 60
 
 /* SYS_fork flags */
 #define CLONE_VM            0x00000100  // set if VM shared between processes

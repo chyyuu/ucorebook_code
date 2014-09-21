@@ -9,6 +9,7 @@
 #include <sem.h>
 #include <event.h>
 #include <mbox.h>
+#include <sync/monitor.h>
 
 static uint32_t
 sys_exit(uint32_t arg[]) {
@@ -208,6 +209,44 @@ sys_mbox_info(uint32_t arg[]) {
     return ipc_mbox_info(id, info);
 }
 
+static uint32_t
+sys_monitor_alloc(uint32_t arg[]) {
+     int conds_count = (int)arg[0];
+     return monitor_alloc(conds_count);
+}
+
+static uint32_t
+sys_monitor_free(uint32_t arg[]) {
+     int monitor = (int)arg[0];
+     return monitor_free(monitor);
+}
+
+static uint32_t
+sys_monitor_enter(uint32_t arg[]) {
+     int monitor = (int)arg[0];
+     return monitor_enter(monitor);
+}
+
+static uint32_t
+sys_monitor_leave(uint32_t arg[]) {
+     int monitor = (int)arg[0];
+     return monitor_leave(monitor);
+}
+
+static uint32_t
+sys_monitor_cond_wait(uint32_t arg[]) {
+     int monitor = (int)arg[0];
+     int cond= (int)arg[1];
+     return monitor_cond_wait(monitor, cond);
+}
+
+static uint32_t
+sys_monitor_cond_signal(uint32_t arg[]) {
+     int monitor = (int)arg[0];
+     int cond= (int)arg[1];
+     return monitor_cond_signal(monitor, cond);
+}
+
 static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -238,6 +277,12 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_mbox_recv]         sys_mbox_recv,
     [SYS_mbox_free]         sys_mbox_free,
     [SYS_mbox_info]         sys_mbox_info,
+    [SYS_monitor_alloc]     sys_monitor_alloc,
+    [SYS_monitor_free]      sys_monitor_free,
+    [SYS_monitor_enter]     sys_monitor_enter,
+    [SYS_monitor_leave]     sys_monitor_leave,
+    [SYS_monitor_cond_wait] sys_monitor_cond_wait,
+    [SYS_monitor_cond_signal]sys_monitor_cond_signal,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

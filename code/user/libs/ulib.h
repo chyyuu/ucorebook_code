@@ -60,5 +60,12 @@ int mbox_recv_timeout(int id, struct mboxbuf *buf, unsigned int timeout);
 int mbox_free(int id);
 int mbox_info(int id, struct mboxinfo *info);
 
+int monitor_alloc(int conds_count);
+int monitor_free(int monitor);
+int monitor_enter(int monitor);
+int monitor_leave(int monitor);
+int monitor_cond_wait(int monitor, int cond);
+int monitor_cond_signal(int monitor, int cond);
+
 #endif /* !__USER_LIBS_ULIB_H__ */
 

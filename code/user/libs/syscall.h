@@ -34,5 +34,12 @@ int sys_mbox_recv(int id, struct mboxbuf *buf, unsigned int timeout);
 int sys_mbox_free(int id);
 int sys_mbox_info(int id, struct mboxinfo *info);
 
+int sys_monitor_alloc(int conds_count);
+int sys_monitor_free(int monitor);
+int sys_monitor_enter(int monitor);
+int sys_monitor_leave(int monitor);
+int sys_monitor_cond_wait(int monitor, int cond);
+int sys_monitor_cond_signal(int monitor, int cond);
+
 #endif /* !__USER_LIBS_SYSCALL_H__ */
 

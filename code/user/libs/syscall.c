@@ -162,3 +162,38 @@ sys_mbox_info(int id, struct mboxinfo *info) {
     return syscall(SYS_mbox_info, id, info);
 }
 
+int
+sys_monitor_alloc(int conds_count)
+{
+     return syscall(SYS_monitor_alloc, conds_count);
+}
+
+int
+sys_monitor_free(int monitor)
+{
+     return syscall(SYS_monitor_free, monitor);
+}
+
+int
+sys_monitor_enter(int monitor)
+{
+     return syscall(SYS_monitor_enter, monitor);
+}
+
+int
+sys_monitor_leave(int monitor)
+{
+     return syscall(SYS_monitor_leave, monitor);
+}
+
+int
+sys_monitor_cond_wait(int monitor, int cond)
+{
+     return syscall(SYS_monitor_cond_wait, monitor, cond);
+}
+
+int
+sys_monitor_cond_signal(int monitor, int cond)
+{
+     return syscall(SYS_monitor_cond_signal, monitor, cond);
+}

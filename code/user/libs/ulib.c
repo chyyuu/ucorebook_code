@@ -173,6 +173,42 @@ mbox_info(int id, struct mboxinfo *info) {
     return sys_mbox_info(id, info);
 }
 
+int
+monitor_alloc(int conds_count)
+{
+     return sys_monitor_alloc(conds_count);
+}
+
+int
+monitor_free(int monitor)
+{
+     return sys_monitor_free(monitor);
+}
+
+int
+monitor_enter(int monitor)
+{
+     return sys_monitor_enter(monitor);
+}
+
+int
+monitor_leave(int monitor)
+{
+     return sys_monitor_leave(monitor);
+}
+
+int
+monitor_cond_wait(int monitor, int cond)
+{
+     return sys_monitor_cond_wait(monitor, cond);
+}
+
+int
+monitor_cond_signal(int monitor, int cond)
+{
+     return sys_monitor_cond_signal(monitor, cond);
+}
+
 int __clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 int

@@ -80,6 +80,8 @@ struct proc_struct {
 #define WT_EVENT_RECV               (0x00000111 | WT_INTERRUPTED)  // wait the recving event 
 #define WT_MBOX_SEND                (0x00000120 | WT_INTERRUPTED)  // wait the sending mbox
 #define WT_MBOX_RECV                (0x00000121 | WT_INTERRUPTED)  // wait the recving mbox
+#define WT_MONITOR_ENTER            (0x00000200 | WT_INTERRUPTED)  // undocumented
+#define WT_MONITOR_COND             (0x00000201 | WT_INTERRUPTED)  // undocumented
 #define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
 
 #define le2proc(le, member)         \
