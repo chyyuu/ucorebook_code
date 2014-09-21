@@ -22,6 +22,8 @@ int sys_sem_post(sem_t sem_id);
 int sys_sem_wait(sem_t sem_id, unsigned int timeout);
 int sys_sem_free(sem_t sem_id);
 int sys_sem_get_value(sem_t sem_id, int *value_store);
+int sys_send_event(int pid, int event, unsigned int timeout);
+int sys_recv_event(int *pid_store, int *event_store, unsigned int timeout);
 
 #endif /* !__USER_LIBS_SYSCALL_H__ */
 

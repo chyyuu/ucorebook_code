@@ -44,6 +44,10 @@ int sem_wait(sem_t sem_id);
 int sem_wait_timeout(sem_t sem_id, unsigned int timeout);
 int sem_free(sem_t sem_id);
 int sem_get_value(sem_t sem_id, int *value_store);
+int send_event(int pid, int event);
+int send_event_timeout(int pid, int event, unsigned int timeout);
+int recv_event(int *pid_store, int *event_store);
+int recv_event_timeout(int *pid_store, int *event_store, unsigned int timeout);
 
 #endif /* !__USER_LIBS_ULIB_H__ */
 

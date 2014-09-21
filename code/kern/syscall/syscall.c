@@ -7,6 +7,7 @@
 #include <error.h>
 #include <assert.h>
 #include <sem.h>
+#include <event.h>
 
 static uint32_t
 sys_exit(uint32_t arg[]) {
@@ -155,6 +156,22 @@ sys_sem_get_value(uint32_t arg[]) {
     return ipc_sem_get_value(sem_id, value_store);
 }
 
+static uint32_t
+sys_event_send(uint32_t arg[]) {
+    int pid = (int)arg[0];
+    int event = (int)arg[1];
+    unsigned int timeout = (unsigned int)arg[2];
+    return ipc_event_send(pid, event, timeout);
+}
+
+static uint32_t
+sys_event_recv(uint32_t arg[]) {
+    int *pid_store = (int *)arg[0];
+    int *event_store = (int *)arg[1];
+    unsigned int timeout = (unsigned int)arg[2];
+    return ipc_event_recv(pid_store, event_store, timeout);
+}
+
 static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -178,6 +195,8 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_sem_wait]          sys_sem_wait,
     [SYS_sem_free]          sys_sem_free,
     [SYS_sem_get_value]     sys_sem_get_value,
+    [SYS_event_send]        sys_event_send,
+    [SYS_event_recv]        sys_event_recv,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

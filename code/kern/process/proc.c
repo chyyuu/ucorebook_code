@@ -116,6 +116,7 @@ alloc_proc(void) {
         list_init(&(proc->run_link));
         proc->time_slice = 0;
         proc->sem_queue = NULL;
+        event_box_init(&(proc->event_box));
     }
     return proc;
 }
@@ -582,6 +583,9 @@ __do_exit(void) {
             }
         }
     }
+
+    wakeup_queue(&(current->event_box.wait_queue), WT_INTERRUPTED, 1);
+
     local_intr_restore(intr_flag);
 
     schedule();
@@ -1141,7 +1145,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(semtest3);
+    KERNEL_EXECVE(eventtest);
 #endif
     panic("user_main execve failed.\n");
 }

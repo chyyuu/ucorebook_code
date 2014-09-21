@@ -126,3 +126,13 @@ sys_sem_get_value(sem_t sem_id, int *value_store) {
     return syscall(SYS_sem_get_value, sem_id, value_store);
 }
 
+int
+sys_send_event(int pid, int event, unsigned int timeout) {
+    return syscall(SYS_event_send, pid, event, timeout);
+}
+
+int
+sys_recv_event(int *pid_store, int *event_store, unsigned int timeout) {
+    return syscall(SYS_event_recv, pid_store, event_store, timeout);
+}
+

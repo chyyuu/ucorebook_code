@@ -118,6 +118,26 @@ sem_get_value(sem_t sem_id, int *value_store) {
     return sys_sem_get_value(sem_id, value_store);
 }
 
+int
+send_event(int pid, int event) {
+    return sys_send_event(pid, event, 0);
+}
+
+int
+send_event_timeout(int pid, int event, unsigned int timeout) {
+    return sys_send_event(pid, event, timeout);
+}
+
+int
+recv_event(int *pid_store, int *event_store) {
+    return sys_recv_event(pid_store, event_store, 0);
+}
+
+int
+recv_event_timeout(int *pid_store, int *event_store, unsigned int timeout) {
+    return sys_recv_event(pid_store, event_store, timeout);
+}
+
 int __clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 int
