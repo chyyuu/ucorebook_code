@@ -4,7 +4,7 @@
 #include <sched.h>
 #include <stdio.h>
 #include <assert.h>
-#include <sched_RR.h>
+#include <sched_MLFQ.h>
 
 static list_entry_t timer_list;
 
@@ -39,16 +39,23 @@ sched_class_proc_tick(struct proc_struct *proc) {
     }
 }
 
-static struct run_queue __rq;
+static struct run_queue __rq[4];
 
 void
 sched_init(void) {
     list_init(&timer_list);
 
-    sched_class = &RR_sched_class;
+    rq = __rq;
+    list_init(&(rq->rq_link));
+    rq->max_time_slice = 8;
 
-    rq = &__rq;
-    rq->max_time_slice = 20;
+    int i;
+    for (i = 1; i < sizeof(__rq) / sizeof(__rq[0]); i ++) {
+        list_add_before(&(rq->rq_link), &(__rq[i].rq_link));
+        __rq[i].max_time_slice = rq->max_time_slice * (1 << i);
+    }
+
+    sched_class = &MLFQ_sched_class;
     sched_class->init(rq);
 
     cprintf("sched class: %s\n", sched_class->name);

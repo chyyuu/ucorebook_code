@@ -54,7 +54,11 @@ struct run_queue {
     list_entry_t run_list;
     unsigned int proc_num;
     int max_time_slice;
+    list_entry_t rq_link;
 };
+
+#define le2rq(le, member)           \
+    to_struct((le), struct run_queue, member)
 
 void sched_init(void);
 void wakeup_proc(struct proc_struct *proc);
