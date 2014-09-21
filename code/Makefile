@@ -1,3 +1,4 @@
+PROJ	:= 3.1
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -47,12 +48,13 @@ HOSTCFLAGS	:= -g -Wall -O2
 GDB		:= $(GCCPREFIX)gdb
 
 CC		:= $(GCCPREFIX)gcc
-CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -nostdinc
+CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
 CFLAGS	+= $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 CTYPE	:= c S
 
 LD      := $(GCCPREFIX)ld
 LDFLAGS	:= -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
+LDFLAGS	+= -nostdlib
 
 OBJCOPY := $(GCCPREFIX)objcopy
 OBJDUMP := $(GCCPREFIX)objdump
@@ -61,7 +63,11 @@ COPY	:= cp
 MKDIR   := mkdir -p
 MV		:= mv
 RM		:= rm -f
+AWK		:= awk
 SED		:= sed
+SH		:= sh
+TR		:= tr
+TOUCH	:= touch -c
 
 OBJDIR	:= obj
 BINDIR	:= bin
@@ -88,6 +94,9 @@ asmfile = $(call cgtype,$(call toobj,$(1)),o,asm)
 outfile = $(call cgtype,$(call toobj,$(1)),o,out)
 symfile = $(call cgtype,$(call toobj,$(1)),o,sym)
 
+# for match pattern
+match = $(shell echo $(2) | $(AWK) '{for(i=1;i<=NF;i++){if(match("$(1)","^"$$(i)"$$")){exit 1;}}}'; echo $$?)
+
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # include kernel/user
 
@@ -102,10 +111,13 @@ $(call add_files_cc,$(call listf_cc,$(LIBDIR)),libs,)
 # -------------------------------------------------------------------
 # kernel
 
-KINCLUDE	+= kern/driver
+KINCLUDE	+= kern/debug/ \
+			   kern/driver/ \
+			   kern/trap/
 
 KSRCDIR		+= kern/init \
 			   kern/libs \
+			   kern/debug \
 			   kern/driver
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
@@ -117,9 +129,11 @@ KOBJS	= $(call read_packet,kernel libs)
 # create kernel target
 kernel = $(call totarget,kernel)
 
+$(kernel): tools/kernel.ld
+
 $(kernel): $(KOBJS)
 	@echo + ld $@
-	$(V)$(LD) $(LDFLAGS) -Ttext 0x100000 -e kern_init -o $@ $(KOBJS)
+	$(V)$(LD) $(LDFLAGS) -T tools/kernel.ld -o $@ $(KOBJS)
 	@$(OBJDUMP) -S $@ > $(call asmfile,kernel)
 	@$(OBJDUMP) -t $@ | $(SED) '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(call symfile,kernel)
 
@@ -164,9 +178,18 @@ $(call create_target,ucore.img)
 
 $(call finish_all)
 
-ifneq ($(MAKECMDGOALS),clean)
+IGNORE_ALLDEPS	= clean \
+				  dist-clean \
+				  grade \
+				  touch \
+				  print-.+ \
+				  handin
+
+ifeq ($(call match,$(MAKECMDGOALS),$(IGNORE_ALLDEPS)),0)
 -include $(ALLDEPS)
 endif
+
+# files for grade script
 
 TARGETS: $(TARGETS)
 
@@ -191,7 +214,38 @@ debug-nox: $(UCOREIMG)
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
 
-.PHONY: clean
+.PHONY: grade touch
+
+GRADE_GDB_IN	:= .gdb.in
+GRADE_QEMU_OUT	:= .qemu.out
+HANDIN			:= proj$(PROJ)-handin.tar.gz
+
+TOUCH_FILES		:= kern/init/init.c
+
+MAKEOPTS		:= --quiet --no-print-directory
+
+grade:
+	$(V)$(MAKE) $(MAKEOPTS) clean
+	$(V)$(SH) tools/grade.sh
+
+touch:
+	$(V)$(foreach f,$(TOUCH_FILES),$(TOUCH) $(f))
+
+print-%:
+	@echo $($(shell echo $(patsubst print-%,%,$@) | $(TR) [a-z] [A-Z]))
+
+.PHONY: clean dist-clean handin packall
 clean:
+	$(V)$(RM) $(GRADE_GDB_IN) $(GRADE_QEMU_OUT)
 	-$(RM) -r $(OBJDIR) $(BINDIR)
+
+dist-clean: clean
+	-$(RM) $(HANDIN)
+
+handin: packall
+	@echo Please visit http://learn.tsinghua.edu.cn and upload $(HANDIN). Thanks!
+
+packall: clean
+	@$(RM) -f $(HANDIN)
+	@tar -czf $(HANDIN) `find . -type f -o -type d | grep -v '^\.*$$' | grep -vF '$(HANDIN)'`
 

@@ -3,6 +3,7 @@
 
 void cons_init(void);
 void cons_putc(int c);
+int cons_getc(void);
 
 #endif /* !__KERN_DRIVER_CONSOLE_H__ */
 

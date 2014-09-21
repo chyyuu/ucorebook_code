@@ -67,3 +67,12 @@ cputs(const char *str) {
     return cnt;
 }
 
+/* getchar - reads a single non-zero character from stdin */
+int
+getchar(void) {
+    int c;
+    while ((c = cons_getc()) == 0)
+        /* do nothing */;
+    return c;
+}
+
