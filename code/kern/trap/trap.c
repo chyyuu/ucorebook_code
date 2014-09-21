@@ -1,29 +1,30 @@
 #include <types.h>
-#include <x86.h>
-#include <stdio.h>
 #include <mmu.h>
 #include <memlayout.h>
-#include <console.h>
-#include <trap.h>
 #include <clock.h>
+#include <trap.h>
+#include <x86.h>
+#include <stdio.h>
 #include <assert.h>
+#include <console.h>
 #include <kdebug.h>
 
 #define TICK_NUM 100
 
-/* *
- * Interrupt descriptor table:
- *
- * Must be built at run time because shifted function addresses can't
- * be represented in relocation records.
- * */
+static void print_ticks() {
+    cprintf("%d ticks\n",TICK_NUM);
+#ifdef DEBUG_GRADE
+    cprintf("End of Test.\n");
+    panic("EOT: kernel seems ok.");
+#endif
+}
+
 static struct gatedesc idt[256] = {{0}};
 
 static struct pseudodesc idt_pd = {
     sizeof(idt) - 1, (uintptr_t)idt
 };
 
-/* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S */
 void
 idt_init(void) {
     extern uintptr_t __vectors[];
@@ -31,8 +32,6 @@ idt_init(void) {
     for (i = 0; i < sizeof(idt) / sizeof(struct gatedesc); i ++) {
         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
-
-    // load the IDT
     lidt(&idt_pd);
 }
 
@@ -70,7 +69,6 @@ trapname(int trapno) {
     return "(unknown trap)";
 }
 
-/* trap_in_kernel - test if trap happened in kernel */
 bool
 trap_in_kernel(struct trapframe *tf) {
     return (tf->tf_cs == (uint16_t)KERNEL_CS);
@@ -120,7 +118,6 @@ print_regs(struct pushregs *regs) {
     cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
 
-/* trap_dispatch - dispatch based on what type of trap occurred */
 static void
 trap_dispatch(struct trapframe *tf) {
     char c;
@@ -133,7 +130,7 @@ trap_dispatch(struct trapframe *tf) {
     case IRQ_OFFSET + IRQ_TIMER:
         ticks ++;
         if (ticks % TICK_NUM == 0) {
-            cprintf("%d ticks\n",TICK_NUM);
+            print_ticks();
         }
         break;
     case IRQ_OFFSET + IRQ_COM1:
@@ -155,13 +152,9 @@ trap_dispatch(struct trapframe *tf) {
     }
 }
 
-/* *
- * trap - handles or dispatches an exception/interrupt. if and when trap() returns,
- * the code in kern/trap/trapentry.S restores the old CPU state saved in the
- * trapframe and then uses the iret instruction to return from the exception.
- * */
 void
 trap(struct trapframe *tf) {
+    // dispatch based on what type of trap occurred
     trap_dispatch(tf);
 }
 
