@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <elf.h>
 #include <fs.h>
+#include <vfs.h>
 #include <swap.h>
 #include <mbox.h>
 
@@ -1199,7 +1200,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(pipetest);
+    KERNEL_EXECVE(hello2);
 #endif
     panic("user_main execve failed.\n");
 }
@@ -1213,6 +1214,11 @@ init_main(void *arg) {
     }
     kswapd = find_proc(pid);
     set_proc_name(kswapd, "kswapd");
+
+    int ret;
+    if ((ret = vfs_set_bootfs("disk0:")) != 0) {
+        panic("set boot fs failed: %e.\n", ret);
+    }
 
     size_t nr_free_pages_store = nr_free_pages();
     size_t slab_allocated_store = slab_allocated();

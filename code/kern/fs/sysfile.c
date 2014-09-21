@@ -8,6 +8,7 @@
 #include <iobuf.h>
 #include <sysfile.h>
 #include <stat.h>
+#include <dirent.h>
 #include <unistd.h>
 #include <error.h>
 #include <assert.h>
@@ -147,6 +148,11 @@ out:
 }
 
 int
+sysfile_seek(int fd, off_t pos, int whence) {
+    return file_seek(fd, pos, whence);
+}
+
+int
 sysfile_fstat(int fd, struct stat *__stat) {
     struct mm_struct *mm = current->mm;
     int ret;
@@ -162,6 +168,76 @@ sysfile_fstat(int fd, struct stat *__stat) {
         }
     }
     unlock_mm(mm);
+    return ret;
+}
+
+int
+sysfile_fsync(int fd) {
+    return file_fsync(fd);
+}
+
+int
+sysfile_chdir(const char *__path) {
+    int ret;
+    char *path;
+    if ((ret = copy_path(&path, __path)) != 0) {
+        return ret;
+    }
+    ret = vfs_chdir(path);
+    kfree(path);
+    return ret;
+}
+
+int
+sysfile_getcwd(char *buf, size_t len) {
+    struct mm_struct *mm = current->mm;
+    if (len == 0) {
+        return -E_INVAL;
+    }
+
+    int ret = -E_INVAL;
+    lock_mm(mm);
+    {
+        if (user_mem_check(mm, (uintptr_t)buf, len, 1)) {
+            struct iobuf __iob, *iob = iobuf_init(&__iob, buf, len, 0);
+            ret = vfs_getcwd(iob);
+        }
+    }
+    unlock_mm(mm);
+    return 0;
+}
+
+int
+sysfile_getdirentry(int fd, struct dirent *__direntp) {
+    struct mm_struct *mm = current->mm;
+    struct dirent *direntp;
+    if ((direntp = kmalloc(sizeof(struct dirent))) == NULL) {
+        return -E_NO_MEM;
+    }
+
+    int ret = 0;
+    lock_mm(mm);
+    {
+        if (!copy_from_user(mm, &(direntp->offset), &(__direntp->offset), sizeof(direntp->offset), 1)) {
+            ret = -E_INVAL;
+        }
+    }
+    unlock_mm(mm);
+
+    if (ret != 0 || (ret = file_getdirentry(fd, direntp)) != 0) {
+        goto out;
+    }
+
+    lock_mm(mm);
+    {
+        if (!copy_to_user(mm, __direntp, direntp, sizeof(struct dirent))) {
+            ret = -E_INVAL;
+        }
+    }
+    unlock_mm(mm);
+
+out:
+    kfree(direntp);
     return ret;
 }
 

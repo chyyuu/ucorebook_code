@@ -8,6 +8,7 @@
 #include <iobuf.h>
 #include <inode.h>
 #include <stat.h>
+#include <dirent.h>
 #include <error.h>
 #include <assert.h>
 
@@ -245,6 +246,36 @@ file_write(int fd, void *base, size_t len, size_t *copied_store) {
 }
 
 int
+file_seek(int fd, off_t pos, int whence) {
+    struct stat __stat, *stat = &__stat;
+    int ret;
+    struct file *file;
+    if ((ret = fd2file(fd, &file)) != 0) {
+        return ret;
+    }
+    filemap_acquire(file);
+
+    switch (whence) {
+    case LSEEK_SET: break;
+    case LSEEK_CUR: pos += file->pos; break;
+    case LSEEK_END:
+        if ((ret = vop_fstat(file->node, stat)) == 0) {
+            pos += stat->st_size;
+        }
+        break;
+    default: ret = -E_INVAL;
+    }
+
+    if (ret == 0) {
+        if ((ret = vop_tryseek(file->node, pos)) == 0) {
+            file->pos = pos;
+        }
+    }
+    filemap_release(file);
+    return ret;
+}
+
+int
 file_fstat(int fd, struct stat *stat) {
     int ret;
     struct file *file;
@@ -253,6 +284,36 @@ file_fstat(int fd, struct stat *stat) {
     }
     filemap_acquire(file);
     ret = vop_fstat(file->node, stat);
+    filemap_release(file);
+    return ret;
+}
+
+int
+file_fsync(int fd) {
+    int ret;
+    struct file *file;
+    if ((ret = fd2file(fd, &file)) != 0) {
+        return ret;
+    }
+    filemap_acquire(file);
+    ret = vop_fsync(file->node);
+    filemap_release(file);
+    return ret;
+}
+
+int
+file_getdirentry(int fd, struct dirent *direntp) {
+    int ret;
+    struct file *file;
+    if ((ret = fd2file(fd, &file)) != 0) {
+        return ret;
+    }
+    filemap_acquire(file);
+
+    struct iobuf __iob, *iob = iobuf_init(&__iob, direntp->name, sizeof(direntp->name), direntp->offset);
+    if ((ret = vop_getdirentry(file->node, iob)) == 0) {
+        direntp->offset += iobuf_used(iob);
+    }
     filemap_release(file);
     return ret;
 }

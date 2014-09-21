@@ -10,6 +10,7 @@
 #include <event.h>
 #include <mbox.h>
 #include <stat.h>
+#include <dirent.h>
 #include <sysfile.h>
 
 static uint32_t
@@ -240,10 +241,44 @@ sys_write(uint32_t arg[]) {
 }
 
 static uint32_t
+sys_seek(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    off_t pos = (off_t)arg[1];
+    int whence = (int)arg[2];
+    return sysfile_seek(fd, pos, whence);
+}
+
+static uint32_t
 sys_fstat(uint32_t arg[]) {
     int fd = (int)arg[0];
     struct stat *stat = (struct stat *)arg[1];
     return sysfile_fstat(fd, stat);
+}
+
+static uint32_t
+sys_fsync(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    return sysfile_fsync(fd);
+}
+
+static uint32_t
+sys_chdir(uint32_t arg[]) {
+    const char *path = (const char *)arg[0];
+    return sysfile_chdir(path);
+}
+
+static uint32_t
+sys_getcwd(uint32_t arg[]) {
+    char *buf = (char *)arg[0];
+    size_t len = (size_t)arg[1];
+    return sysfile_getcwd(buf, len);
+}
+
+static uint32_t
+sys_getdirentry(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    struct dirent *direntp = (struct dirent *)arg[1];
+    return sysfile_getdirentry(fd, direntp);
 }
 
 static uint32_t
@@ -300,7 +335,12 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_close]             sys_close,
     [SYS_read]              sys_read,
     [SYS_write]             sys_write,
+    [SYS_seek]              sys_seek,
     [SYS_fstat]             sys_fstat,
+    [SYS_fsync]             sys_fsync,
+    [SYS_chdir]             sys_chdir,
+    [SYS_getcwd]            sys_getcwd,
+    [SYS_getdirentry]       sys_getdirentry,
     [SYS_dup]               sys_dup,
     [SYS_pipe]              sys_pipe,
     [SYS_mkfifo]            sys_mkfifo,

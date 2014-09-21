@@ -4,6 +4,7 @@
 #include <types.h>
 #include <dev.h>
 #include <pipe.h>
+#include <sfs.h>
 #include <atomic.h>
 #include <assert.h>
 
@@ -31,11 +32,13 @@ struct inode {
         struct device __device_info;
         struct pipe_root __pipe_root_info;
         struct pipe_inode __pipe_inode_info;
+        struct sfs_inode __sfs_inode_info;
     } in_info;
     enum {
         inode_type_device_info = 0x1234,
         inode_type_pipe_root_info,
         inode_type_pipe_inode_info,
+        inode_type_sfs_inode_info,
     } in_type;
     atomic_t ref_count;
     atomic_t open_count;

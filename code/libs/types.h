@@ -5,6 +5,8 @@
 #define NULL ((void *)0)
 #endif
 
+#define CHAR_BIT        8
+
 /* Represents true-or-false values */
 typedef int bool;
 
@@ -51,6 +53,12 @@ typedef uintptr_t sem_t;
 #define ROUNDUP(a, n) ({                                            \
             size_t __n = (size_t)(n);                               \
             (typeof(a))(ROUNDDOWN((size_t)(a) + __n - 1, __n));     \
+        })
+
+/* Round up the result of dividing of n */
+#define ROUNDUP_DIV(a, n) ({                                        \
+            uint32_t __n = (uint32_t)(n);                           \
+            (typeof(a))(((a) + __n - 1) / __n);                     \
         })
 
 /* Return the offset of 'member' relative to the beginning of a struct type */

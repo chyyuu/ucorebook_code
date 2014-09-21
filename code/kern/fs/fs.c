@@ -5,6 +5,7 @@
 #include <dev.h>
 #include <file.h>
 #include <pipe.h>
+#include <sfs.h>
 #include <inode.h>
 #include <assert.h>
 
@@ -13,6 +14,7 @@ fs_init(void) {
     vfs_init();
     dev_init();
     pipe_init();
+    sfs_init();
 }
 
 void

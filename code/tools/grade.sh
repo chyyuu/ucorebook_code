@@ -317,99 +317,134 @@ osimg=$(make_print ucoreimg)
 ## swap image
 swapimg=$(make_print swapimg)
 
+## fs image
+fsimg=$(make_print fsimg)
+fsroot=$(make_print sfsroot)
+
 ## set default qemu-options
-qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
+qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback -drive file=$fsimg,media=disk,cache=writeback"
 
 ## set break-function, default is readline
 brkfun=readline
 
 default_check() {
-    pts=20
+    pts=10
     check_regexps "$@"
 
     pts=10
-    quick_check 'check output'                                  \
-        'check_alloc_page() succeeded!'                         \
-        'check_pgdir() succeeded!'                              \
-        'check_boot_pgdir() succeeded!'                         \
-        'check_slab() succeeded!'                               \
-        'check_vma_struct() succeeded!'                         \
-        'check_pgfault() succeeded!'                            \
-        'check_vmm() succeeded.'                                \
-        'check_swap() succeeded.'                               \
-        'check_mm_swap: step1, mm_map ok.'                      \
-        'check_mm_swap: step2, mm_unmap ok.'                    \
-        'check_mm_swap: step3, exit_mmap ok.'                   \
-        'check_mm_swap: step4, dup_mmap ok.'                    \
-        'check_mm_swap() succeeded.'                            \
-        'check_mm_shm_swap: step1, share memory ok.'            \
-        'check_mm_shm_swap: step2, dup_mmap ok.'                \
-        'check_mm_shm_swap() succeeded.'                        \
+    quick_check 'check output'                                          \
+        'check_alloc_page() succeeded!'                                 \
+        'check_pgdir() succeeded!'                                      \
+        'check_boot_pgdir() succeeded!'                                 \
+        'check_slab() succeeded!'                                       \
+        'check_vma_struct() succeeded!'                                 \
+        'check_pgfault() succeeded!'                                    \
+        'check_vmm() succeeded.'                                        \
+        'check_swap() succeeded.'                                       \
+        'check_mm_swap: step1, mm_map ok.'                              \
+        'check_mm_swap: step2, mm_unmap ok.'                            \
+        'check_mm_swap: step3, exit_mmap ok.'                           \
+        'check_mm_swap: step4, dup_mmap ok.'                            \
+        'check_mm_swap() succeeded.'                                    \
+        'check_mm_shm_swap: step1, share memory ok.'                    \
+        'check_mm_shm_swap: step2, dup_mmap ok.'                        \
+        'check_mm_shm_swap() succeeded.'                                \
+        'vfs: mount disk0.'                                             \
         '++ setup timer interrupts'
 }
 
 ## check now!!
 
-run_test -prog 'hello2' -check default_check                    \
-        'kernel_execve: pid = 3, name = "hello2".'              \
-        'Hello world!!.'                                        \
-        'I am process 3.'                                       \
-        'hello2 pass.'                                          \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
+run_test -prog 'hello2' -check default_check                            \
+        'kernel_execve: pid = 3, name = "hello2".'                      \
+        'Hello world!!.'                                                \
+        'I am process 3.'                                               \
+        'hello2 pass.'                                                  \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-run_test -prog 'fwrite_test' -check default_check               \
-        'kernel_execve: pid = 3, name = "fwrite_test".'         \
-        'Hello world!!.'                                        \
-        'I am process 3.'                                       \
-        'dup fd ok.'                                            \
-        'fork fd ok.'                                           \
-        'fwrite_test pass.'                                     \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
+run_test -prog 'fwrite_test' -check default_check                       \
+        'kernel_execve: pid = 3, name = "fwrite_test".'                 \
+        'Hello world!!.'                                                \
+        'I am process 3.'                                               \
+        'dup fd ok.'                                                    \
+        'fork fd ok.'                                                   \
+        'fwrite_test pass.'                                             \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-run_test -prog 'fread_test2' -check default_check               \
-        'kernel_execve: pid = 3, name = "fread_test2".'         \
-        'fread_test2 pass.'                                     \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
+run_test -prog 'fread_test2' -check default_check                       \
+        'kernel_execve: pid = 3, name = "fread_test2".'                 \
+        'fread_test2 pass.'                                             \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
     ! - 'user panic at .*'
+
+show_part A
 
 pts=30
 timeout=300
 
-run_test -prog 'pipetest'                                       \
-        'kernel_execve: pid = 3, name = "pipetest".'            \
-        'child write ok'                                        \
-        'parent read ok'                                        \
-        'pipetest step1 pass.'                                  \
-        'pipetest step2 pass.'                                  \
-        'pipetest step3 pass.'                                  \
-        'pipetest step4 pass.'                                  \
-        'pipetest pass.'                                        \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
+run_test -prog 'sfs_filetest1'                                          \
+        'kernel_execve: pid = 3, name = "sfs_filetest1".'               \
+        'init_data ok.'                                                 \
+        'random_test ok.'                                               \
+        'sfs_filetest1 pass.'                                           \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-run_test -prog 'pipetest2'                                      \
-        'kernel_execve: pid = 3, name = "pipetest2".'           \
-        '0 reads 200000'                                        \
-        '1 reads 200000'                                        \
-        '2 reads 200000'                                        \
-        '3 reads 200000'                                        \
-        '4 reads 200000'                                        \
-        '5 reads 200000'                                        \
-        '6 reads 200000'                                        \
-        '7 reads 200000'                                        \
-        '8 reads 200000'                                        \
-        '9 reads 200000'                                        \
-        'pipetest2 pass.'                                       \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    !   'pipe is closed, too early.'                            \
+run_test -prog 'sfs_filetest2'                                          \
+        'kernel_execve: pid = 3, name = "sfs_filetest2".'               \
+        'sfs_filetest2 pass.'                                           \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
     ! - 'user panic at .*'
+
+run_test -prog 'sfs_dirtest1'                                           \
+        'kernel_execve: pid = 3, name = "sfs_dirtest1".'                \
+        '0: current: disk0:/'                                           \
+        '1: current: disk0:/'                                           \
+        '2: current: disk0:/home/'                                      \
+        '2: d   2      0        512  .'                                 \
+        '2: d   6      4       1536  ..'                                \
+        '3: current: disk0:/testman/'                                   \
+        '3: d   3      8       2560  .'                                 \
+        '3: d   6      4       1536  ..'                                \
+        '3: -   1     21      83153  awk'                               \
+        '3: d   2      5       1792  coreutils'                         \
+        '3: -   1      8      31690  cpp'                               \
+        '3: -   1    100     408495  gcc'                               \
+        '3: -   1      3       8341  gdb'                               \
+        '3: -   1     12      46254  ld'                                \
+        '3: -   1      3      10371  sed'                               \
+        '3: -   1      5      17354  zsh'                               \
+        '4: current: disk0:/testman/coreutils/'                         \
+        '4: d   2      5       1792  .'                                 \
+        '4: d   3      8       2560  ..'                                \
+        '4: -   1      1       2115  cat'                               \
+        '4: -   1      2       5338  cp'                                \
+        '4: -   1      2       7487  ls'                                \
+        '4: -   1      1       3024  mv'                                \
+        '4: -   1      1       3676  rm'                                \
+        '5: current: disk0:/testman/'                                   \
+        '5: d   3      8       2560  .'                                 \
+        '5: d   6      4       1536  ..'                                \
+        '6: current: disk0:/'                                           \
+        '6: d   6      4       1536  .'                                 \
+        '6: d   6      4       1536  ..'                                \
+        '6: d   2      0        512  bin'                               \
+        '6: d   2      0        512  home'                              \
+        '6: d   2      1        768  test'                              \
+        '6: d   3      8       2560  testman'                           \
+        'sfs_dirtest1 pass.'                                            \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
+    ! - 'user panic at .*'
+
+show_part B
 
 ## print final-score
 show_final

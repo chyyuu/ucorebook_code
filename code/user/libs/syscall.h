@@ -35,12 +35,18 @@ int sys_mbox_free(int id);
 int sys_mbox_info(int id, struct mboxinfo *info);
 
 struct stat;
+struct dirent;
 
 int sys_open(const char *path, uint32_t open_flags);
 int sys_close(int fd);
 int sys_read(int fd, void *base, size_t len);
 int sys_write(int fd, void *base, size_t len);
+int sys_seek(int fd, off_t pos, int whence);
 int sys_fstat(int fd, struct stat *stat);
+int sys_fsync(int fd);
+int sys_chdir(const char *path);
+int sys_getcwd(char *buffer, size_t len);
+int sys_getdirentry(int fd, struct dirent *dirent);
 int sys_dup(int fd1, int fd2);
 int sys_pipe(int *fd_store);
 int sys_mkfifo(const char *name, uint32_t open_flags);

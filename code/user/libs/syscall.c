@@ -4,6 +4,7 @@
 #include <syscall.h>
 #include <mboxbuf.h>
 #include <stat.h>
+#include <dirent.h>
 
 #define MAX_ARGS            5
 
@@ -184,8 +185,33 @@ sys_write(int fd, void *base, size_t len) {
 }
 
 int
+sys_seek(int fd, off_t pos, int whence) {
+    return syscall(SYS_seek, fd, pos, whence);
+}
+
+int
 sys_fstat(int fd, struct stat *stat) {
     return syscall(SYS_fstat, fd, stat);
+}
+
+int
+sys_fsync(int fd) {
+    return syscall(SYS_fsync, fd);
+}
+
+int
+sys_chdir(const char *path) {
+    return syscall(SYS_chdir, path);
+}
+
+int
+sys_getcwd(char *buffer, size_t len) {
+    return syscall(SYS_getcwd, buffer, len);
+}
+
+int
+sys_getdirentry(int fd, struct dirent *dirent) {
+    return syscall(SYS_getdirentry, fd, dirent);
 }
 
 int

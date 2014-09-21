@@ -1,4 +1,4 @@
-PROJ	:= 17.1
+PROJ	:= 18
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -43,7 +43,7 @@ endif
 # define compiler and flags
 
 HOSTCC		:= gcc
-HOSTCFLAGS	:= -g -Wall -O2
+HOSTCFLAGS	:= -g -Wall -O2 -D_FILE_OFFSET_BITS=64
 
 GDB		:= $(GCCPREFIX)gdb
 
@@ -157,6 +157,7 @@ KINCLUDE	+= kern/debug/ \
 			   kern/fs/vfs/ \
 			   kern/fs/devs/ \
 			   kern/fs/pipe/ \
+			   kern/fs/sfs/ \
 			   kern/process/ \
 			   kern/schedule/ \
 			   kern/syscall/
@@ -173,6 +174,7 @@ KSRCDIR		+= kern/init \
 			   kern/fs/vfs \
 			   kern/fs/devs \
 			   kern/fs/pipe \
+			   kern/fs/sfs \
 			   kern/process \
 			   kern/schedule \
 			   kern/syscall
@@ -221,6 +223,12 @@ $(call create_target_host,sign,sign)
 
 # -------------------------------------------------------------------
 
+# create 'mksfs' tools
+$(call add_files_host,tools/mksfs.c,mksfs,mksfs)
+$(call create_target_host,mksfs,mksfs)
+
+# -------------------------------------------------------------------
+
 # create ucore.img
 UCOREIMG	:= $(call totarget,ucore.img)
 
@@ -240,6 +248,18 @@ $(SWAPIMG):
 	$(V)dd if=/dev/zero of=$@ bs=1M count=128
 
 $(call create_target,swap.img)
+
+# -------------------------------------------------------------------
+
+# create fs.img
+FSIMG		:= $(call totarget,fs.img)
+SFSROOT		:= disk0
+
+$(FSIMG): $(SFSROOT) | $(call totarget,mksfs)
+	$(V)dd if=/dev/zero of=$@ bs=1M count=128
+	@$(call totarget,mksfs) $@ $(SFSROOT)
+
+$(call create_target,fs.img)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -264,23 +284,23 @@ TARGETS: $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
 
-QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback
+QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback -drive file=$(FSIMG),media=disk,cache=writeback
 
 .PHONY: qemu qemu-nox debug debug-nox
-qemu: $(UCOREIMG) $(SWAPIMG)
+qemu: $(UCOREIMG) $(SWAPIMG) $(FSIMG)
 	$(V)$(QEMU) -parallel stdio $(QEMUOPTS) -serial null
 
-qemu-nox: $(UCOREIMG) $(SWAPIMG)
+qemu-nox: $(UCOREIMG) $(SWAPIMG) $(FSIMG)
 	$(V)$(QEMU) -serial mon:stdio $(QEMUOPTS) -nographic
 
 TERMINAL := gnome-terminal
 
-debug: $(UCOREIMG) $(SWAPIMG)
+debug: $(UCOREIMG) $(SWAPIMG) $(FSIMG)
 	$(V)$(QEMU) -S -s -parallel stdio $(QEMUOPTS) -serial null &
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
 
-debug-nox: $(UCOREIMG) $(SWAPIMG)
+debug-nox: $(UCOREIMG) $(SWAPIMG) $(FSIMG)
 	$(V)$(QEMU) -S -s -serial mon:stdio $(QEMUOPTS) -nographic &
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
@@ -294,7 +314,7 @@ run-%: build-%
 build-%: touch
 	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=$* -DTESTSTART=$(RUN_PREFIX)$*_out_start -DTESTSIZE=$(RUN_PREFIX)$*_out_size"
 
-.PHONY: grade touch
+.PHONY: grade touch buildfs
 
 GRADE_GDB_IN	:= .gdb.in
 GRADE_QEMU_OUT	:= .qemu.out
