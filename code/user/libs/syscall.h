@@ -19,7 +19,8 @@ int sys_putc(int c);
 int sys_pgdir(void);
 sem_t sys_sem_init(int value);
 int sys_sem_post(sem_t sem_id);
-int sys_sem_wait(sem_t sem_id);
+int sys_sem_wait(sem_t sem_id, unsigned int timeout);
+int sys_sem_free(sem_t sem_id);
 int sys_sem_get_value(sem_t sem_id, int *value_store);
 
 #endif /* !__USER_LIBS_SYSCALL_H__ */

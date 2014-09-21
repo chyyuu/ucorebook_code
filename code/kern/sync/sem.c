@@ -4,10 +4,12 @@
 #include <slab.h>
 #include <sem.h>
 #include <vmm.h>
+#include <ipc.h>
 #include <proc.h>
 #include <sync.h>
 #include <assert.h>
 #include <error.h>
+#include <clock.h>
 
 /*  ------------- semaphore mechanism design&implementation -------------
   ucore offers two kinds of semaphores: Kernel semaphores, which are used by kernel control paths; 
@@ -50,11 +52,13 @@ Now, ucore didn't implementation 'Special Case&Operation for User Semaphore' in 
 void
 sem_init(semaphore_t *sem, int value) {
     sem->value = value;
+    sem->valid = 1;
     set_sem_count(sem, 0);
     wait_queue_init(&(sem->wait_queue));
 }
 
 static void __attribute__ ((noinline)) __up(semaphore_t *sem, uint32_t wait_state) {
+    assert(sem->valid);
     bool intr_flag;
     local_intr_save(intr_flag);
     {
@@ -70,7 +74,8 @@ static void __attribute__ ((noinline)) __up(semaphore_t *sem, uint32_t wait_stat
     local_intr_restore(intr_flag);
 }
 
-static uint32_t __attribute__ ((noinline)) __down(semaphore_t *sem, uint32_t wait_state) {
+static uint32_t __attribute__ ((noinline)) __down(semaphore_t *sem, uint32_t wait_state, timer_t *timer) {
+    assert(sem->valid);
     bool intr_flag;
     local_intr_save(intr_flag);
     if (sem->value > 0) {
@@ -80,11 +85,13 @@ static uint32_t __attribute__ ((noinline)) __down(semaphore_t *sem, uint32_t wai
     }
     wait_t __wait, *wait = &__wait;
     wait_current_set(&(sem->wait_queue), wait, wait_state);
+    ipc_add_timer(timer);
     local_intr_restore(intr_flag);
 
     schedule();
 
     local_intr_save(intr_flag);
+    ipc_del_timer(timer);
     wait_current_del(&(sem->wait_queue), wait);
     local_intr_restore(intr_flag);
 
@@ -101,7 +108,7 @@ up(semaphore_t *sem) {
 
 void
 down(semaphore_t *sem) {
-    uint32_t flags = __down(sem, WT_KSEM);
+    uint32_t flags = __down(sem, WT_KSEM, NULL);
     assert(flags == 0);
 }
 
@@ -116,15 +123,23 @@ try_down(semaphore_t *sem) {
     return ret;
 }
 
-static void
+static int
 usem_up(semaphore_t *sem) {
     __up(sem, WT_USEM);
+    return 0;
 }
 
-static void
-usem_down(semaphore_t *sem) {
-    uint32_t flags = __down(sem, WT_USEM);
-    assert(flags == 0 || flags == WT_INTERRUPTED);
+static int
+usem_down(semaphore_t *sem, unsigned int timeout) {
+    unsigned long saved_ticks;
+    timer_t __timer, *timer = ipc_timer_init(timeout, &saved_ticks, &__timer);
+
+    uint32_t flags;
+    if ((flags = __down(sem, WT_USEM, timer)) == 0) {
+        return 0;
+    }
+    assert(flags == WT_INTERRUPTED);
+    return ipc_check_timeout(timeout, saved_ticks);
 }
 
 sem_queue_t *
@@ -173,11 +188,13 @@ dup_sem_queue(sem_queue_t *to, sem_queue_t *from) {
     assert(to != NULL && from != NULL);
     list_entry_t *list = &(from->semu_list), *le = list;
     while ((le = list_next(le)) != list) {
-        sem_undo_t *semu;
-        if ((semu = semu_create(le2semu(le, semu_link)->sem, 0)) == NULL) {
-            return -E_NO_MEM;
+        sem_undo_t *semu = le2semu(le, semu_link);
+        if (semu->sem->valid) {
+            if ((semu = semu_create(semu->sem, 0)) == NULL) {
+                return -E_NO_MEM;
+            }
+            list_add(&(to->semu_list), &(semu->semu_link));
         }
-        list_add(&(to->semu_list), &(semu->semu_link));
     }
     return 0;
 }
@@ -201,8 +218,14 @@ semu_list_search(list_entry_t *list, sem_t sem_id) {
             sem_undo_t *semu = le2semu(le, semu_link);
             if (semu->sem == sem) {
                 list_del(le);
-                list_add_after(list, le);
-                return semu;
+                if (sem->valid) {
+                    list_add_after(list, le);
+                    return semu;
+                }
+                else {
+                    semu_destroy(semu);
+                    return NULL;
+                }
             }
         }
     }
@@ -235,14 +258,13 @@ ipc_sem_post(sem_t sem_id) {
     semu = semu_list_search(&(sem_queue->semu_list), sem_id);
     up(&(sem_queue->sem));
     if (semu != NULL) {
-        usem_up(semu->sem);
-        return 0;
+        return usem_up(semu->sem);
     }
     return -E_INVAL;
 }
 
 int
-ipc_sem_wait(sem_t sem_id) {
+ipc_sem_wait(sem_t sem_id, unsigned int timeout) {
     assert(current->sem_queue != NULL);
 
     sem_undo_t *semu;
@@ -251,10 +273,33 @@ ipc_sem_wait(sem_t sem_id) {
     semu = semu_list_search(&(sem_queue->semu_list), sem_id);
     up(&(sem_queue->sem));
     if (semu != NULL) {
-        usem_down(semu->sem);
-        return 0;
+        return usem_down(semu->sem, timeout);
     }
     return -E_INVAL;
+}
+
+int
+ipc_sem_free(sem_t sem_id) {
+    assert(current->sem_queue != NULL);
+
+    sem_undo_t *semu;
+    sem_queue_t *sem_queue = current->sem_queue;
+    down(&(sem_queue->sem));
+    semu = semu_list_search(&(sem_queue->semu_list), sem_id);
+    up(&(sem_queue->sem));
+
+    int ret = -E_INVAL;
+    if (semu != NULL) {
+        bool intr_flag;
+        local_intr_save(intr_flag);
+        {
+            semaphore_t *sem = semu->sem;
+            sem->valid = 0, ret = 0;
+            wakeup_queue(&(sem->wait_queue), WT_INTERRUPTED, 1);
+        }
+        local_intr_restore(intr_flag);
+    }
+    return ret;
 }
 
 int

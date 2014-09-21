@@ -112,8 +112,13 @@ sys_sem_post(sem_t sem_id) {
 }
 
 int
-sys_sem_wait(sem_t sem_id) {
-    return syscall(SYS_sem_wait, sem_id);
+sys_sem_wait(sem_t sem_id, unsigned int timeout) {
+    return syscall(SYS_sem_wait, sem_id, timeout);
+}
+
+int
+sys_sem_free(sem_t sem_id) {
+    return syscall(SYS_sem_free, sem_id);
 }
 
 int

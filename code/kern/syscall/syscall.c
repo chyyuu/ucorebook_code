@@ -138,7 +138,14 @@ sys_sem_post(uint32_t arg[]) {
 static uint32_t
 sys_sem_wait(uint32_t arg[]) {
     sem_t sem_id = (sem_t)arg[0];
-    return ipc_sem_wait(sem_id);
+    unsigned int timeout = (unsigned int)arg[1];
+    return ipc_sem_wait(sem_id, timeout);
+}
+
+static uint32_t
+sys_sem_free(uint32_t arg[]) {
+    sem_t sem_id = (sem_t)arg[0];
+    return ipc_sem_free(sem_id);
 }
 
 static uint32_t
@@ -169,6 +176,7 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_sem_init]          sys_sem_init,
     [SYS_sem_post]          sys_sem_post,
     [SYS_sem_wait]          sys_sem_wait,
+    [SYS_sem_free]          sys_sem_free,
     [SYS_sem_get_value]     sys_sem_get_value,
 };
 

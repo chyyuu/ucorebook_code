@@ -26,6 +26,7 @@ static const char * const error_string[MAXERROR + 1] = {
     [E_INVAL_ELF]           "invalid elf file",
     [E_KILLED]              "process is killed",
     [E_PANIC]               "panic failure",
+    [E_TIMEOUT]             "timeout",
 };
 
 /* *

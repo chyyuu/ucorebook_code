@@ -24,7 +24,8 @@
 #define SYS_sem_init        40
 #define SYS_sem_post        41
 #define SYS_sem_wait        42
-#define SYS_sem_get_value   43
+#define SYS_sem_free        43
+#define SYS_sem_get_value   44
 
 /* SYS_fork flags */
 #define CLONE_VM            0x00000100  // set if VM shared between processes

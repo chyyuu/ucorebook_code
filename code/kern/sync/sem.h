@@ -7,6 +7,7 @@
 
 typedef struct {
     int value;
+    bool valid;
     atomic_t count;
     wait_queue_t wait_queue;
 } semaphore_t;
@@ -46,7 +47,8 @@ void exit_sem_queue(sem_queue_t *sem_queue);
 
 int ipc_sem_init(int value);
 int ipc_sem_post(sem_t sem_id);
-int ipc_sem_wait(sem_t sem_id);
+int ipc_sem_wait(sem_t sem_id, unsigned int timeout);
+int ipc_sem_free(sem_t sem_id);
 int ipc_sem_get_value(sem_t sem_id, int *value_store);
 
 static inline int

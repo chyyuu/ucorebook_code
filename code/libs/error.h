@@ -12,9 +12,10 @@
 #define E_INVAL_ELF         8   // Invalid elf file
 #define E_KILLED            9   // Process is killed
 #define E_PANIC             10  // Panic Failure
+#define E_TIMEOUT           11  // Timeout
 
 /* the maximum allowed */
-#define MAXERROR            10
+#define MAXERROR            11
 
 #endif /* !__LIBS_ERROR_H__ */
 

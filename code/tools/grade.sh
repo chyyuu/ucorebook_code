@@ -410,7 +410,7 @@ run_test -prog 'spipetest' -check default_check                 \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-pts=20
+pts=15
 timeout=240
 
 run_test -prog 'spipetest2'                                     \
@@ -432,7 +432,7 @@ run_test -prog 'spipetest2'                                     \
     !   'spipe close failed.'                                   \
     ! - 'user panic at .*'
 
-pts=30
+pts=25
 timeout=500
 
 run_test -prog 'primer2'                                        \
@@ -496,6 +496,27 @@ run_test -prog 'primer2'                                        \
       - '...... 937 quit.'                                      \
       - '...... 971 quit.'                                      \
         'primer2 pass.'                                         \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+pts=20
+timeout=
+
+run_test -prog 'semtest3'                                       \
+        'kernel_execve: pid = 3, name = "semtest3".'            \
+        'wait now...'                                           \
+        'wait timeout'                                          \
+        'child now sleep'                                       \
+        'semtest3 pass.'                                        \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'semtest4'                                       \
+        'kernel_execve: pid = 3, name = "semtest4".'            \
+        'child exit ok.'                                        \
+        'semtest4 pass.'                                        \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'

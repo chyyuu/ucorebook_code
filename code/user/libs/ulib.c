@@ -100,7 +100,17 @@ sem_post(sem_t sem_id) {
 
 int
 sem_wait(sem_t sem_id) {
-    return sys_sem_wait(sem_id);
+    return sys_sem_wait(sem_id, 0);
+}
+
+int
+sem_wait_timeout(sem_t sem_id, unsigned int timeout) {
+    return sys_sem_wait(sem_id, timeout);
+}
+
+int
+sem_free(sem_t sem_id) {
+    return sys_sem_free(sem_id);
 }
 
 int
