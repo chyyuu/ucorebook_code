@@ -6,6 +6,7 @@
 #include <list.h>
 #include <sync.h>
 #include <memlayout.h>
+#include <sem.h>
 
 typedef struct shmn_s {
     uintptr_t start;
@@ -24,7 +25,7 @@ struct shmem_struct {
     shmn_t *shmn_cache;
     size_t len;
     atomic_t shmem_ref;
-    lock_t shmem_lock;
+    semaphore_t shmem_sem;
 };
 
 struct shmem_struct *shmem_create(size_t len);
@@ -55,12 +56,12 @@ shmem_ref_dec(struct shmem_struct *shmem) {
 
 static inline void
 lock_shmem(struct shmem_struct *shmem) {
-    lock(&(shmem->shmem_lock));
+    down(&(shmem->shmem_sem));
 }
 
 static inline void
 unlock_shmem(struct shmem_struct *shmem) {
-    unlock(&(shmem->shmem_lock));
+    up(&(shmem->shmem_sem));
 }
 
 #endif /* !__KERN_MM_SHMEM_H__ */

@@ -113,7 +113,7 @@ static void check_swap(void);
 static void check_mm_swap(void);
 static void check_mm_shm_swap(void);
 
-static lock_t swap_in_lock;
+static semaphore_t swap_in_sem;
 
 static volatile int pressure = 0;
 static wait_queue_t kswapd_done;
@@ -178,7 +178,7 @@ swap_init(void) {
         list_init(hash_list + i);
     }
 
-    lock_init(&swap_in_lock);
+    sem_init(&swap_in_sem, 1);
 
     check_swap();
     check_mm_swap();
@@ -386,7 +386,7 @@ swap_in_page(swap_entry_t entry, struct Page **pagep) {
 
     newpage = alloc_page();
 
-    lock(&(swap_in_lock));
+    down(&swap_in_sem);
     if ((page = swap_hash_find(entry)) != NULL) {
         if (newpage != NULL) {
             free_page(newpage);
@@ -407,13 +407,13 @@ swap_in_page(swap_entry_t entry, struct Page **pagep) {
     swap_active_list_add(page);
 
 found_unlock:
-    unlock(&swap_in_lock);
+    up(&swap_in_sem);
 found:
     *pagep = page;
     return 0;
 
 failed_unlock:
-    unlock(&swap_in_lock);
+    up(&swap_in_sem);
     return ret;
 }
 

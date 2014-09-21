@@ -10,6 +10,7 @@
 #include <swap.h>
 #include <shmem.h>
 #include <proc.h>
+#include <sem.h>
 
 /* 
   vmm design include two parts: mm_struct (mm) & vma_struct (vma)
@@ -47,7 +48,7 @@ static void check_pgfault(void);
 void
 lock_mm(struct mm_struct *mm) {
     if (mm != NULL) {
-        lock(&(mm->mm_lock));
+        down(&(mm->mm_sem));
         if (current != NULL) {
             mm->locked_by = current->pid;
         }
@@ -57,7 +58,7 @@ lock_mm(struct mm_struct *mm) {
 void
 unlock_mm(struct mm_struct *mm) {
     if (mm != NULL) {
-        unlock(&(mm->mm_lock));
+        up(&(mm->mm_sem));
         mm->locked_by = 0;
     }
 }
@@ -65,7 +66,7 @@ unlock_mm(struct mm_struct *mm) {
 bool
 try_lock_mm(struct mm_struct *mm) {
     if (mm != NULL) {
-        if (!try_lock(&(mm->mm_lock))) {
+        if (!try_down(&(mm->mm_sem))) {
             return 0;
         }
         if (current != NULL) {
@@ -87,10 +88,10 @@ mm_create(void) {
         mm->map_count = 0;
         mm->swap_address = 0;
         set_mm_count(mm, 0);
-        lock_init(&(mm->mm_lock));
         mm->locked_by = 0;
         mm->brk_start = mm->brk = 0;
         list_init(&(mm->proc_mm_link));
+        sem_init(&(mm->mm_sem), 1);
     }
     return mm;
 }

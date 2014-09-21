@@ -6,6 +6,7 @@
 #include <string.h>
 #include <swap.h>
 #include <error.h>
+#include <sem.h>
 
 struct shmem_struct *
 shmem_create(size_t len) {
@@ -15,7 +16,7 @@ shmem_create(size_t len) {
         shmem->shmn_cache = NULL;
         shmem->len = len;
         set_shmem_ref(shmem, 0);
-        lock_init(&(shmem->shmem_lock));
+        sem_init(&(shmem->shmem_sem), 1);
     }
     return shmem;
 }

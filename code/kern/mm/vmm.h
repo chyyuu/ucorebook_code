@@ -8,6 +8,7 @@
 #include <sync.h>
 #include <shmem.h>
 #include <atomic.h>
+#include <sem.h>
 
 //pre define
 struct mm_struct;
@@ -45,10 +46,10 @@ struct mm_struct {
     int map_count;                 // the count of these vma
     uintptr_t swap_address;
     atomic_t mm_count;
-    lock_t mm_lock;
     int locked_by;
     uintptr_t brk_start, brk;
     list_entry_t proc_mm_link;
+    semaphore_t mm_sem;
 };
 
 void lock_mm(struct mm_struct *mm);

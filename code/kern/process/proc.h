@@ -70,6 +70,7 @@ struct proc_struct {
 #define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)  // wait child process
 #define WT_TIMER                    (0x00000002 | WT_INTERRUPTED)  // wait timer
 #define WT_KSWAPD                    0x00000003                    // wait kswapd to free page
+#define WT_KSEM                      0x00000100                    // wait kernel semaphore
 #define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
 
 #define le2proc(le, member)         \
