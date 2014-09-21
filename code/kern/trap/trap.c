@@ -1,22 +1,16 @@
 #include <types.h>
 #include <x86.h>
 #include <stdio.h>
+#include <string.h>
 #include <mmu.h>
 #include <memlayout.h>
 #include <console.h>
 #include <trap.h>
 #include <clock.h>
+#include <kgdb.h>
 #include <assert.h>
 
 #define TICK_NUM 100
-
-static void print_ticks() {
-    cprintf("%d ticks\n",TICK_NUM);
-#ifdef DEBUG_GRADE
-    cprintf("End of Test.\n");
-    panic("EOT: kernel seems ok.");
-#endif
-}
 
 /* *
  * Interrupt descriptor table:
@@ -27,7 +21,7 @@ static void print_ticks() {
 static struct gatedesc idt[256] = {{0}};
 
 static struct pseudodesc idt_pd = {
-    sizeof(idt) - 1, (uint32_t)idt
+    sizeof(idt) - 1, (uintptr_t)idt
 };
 
 /* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S */
@@ -133,10 +127,14 @@ trap_dispatch(struct trapframe *tf) {
     char c;
 
     switch (tf->tf_trapno) {
+    case T_DEBUG:
+    case T_BRKPT:
+        kgdb_debug(tf);
+        break;
     case IRQ_OFFSET + IRQ_TIMER:
         ticks ++;
         if (ticks % TICK_NUM == 0) {
-            print_ticks();
+            cprintf("%d ticks\n",TICK_NUM);
         }
         break;
     case IRQ_OFFSET + IRQ_COM1:
@@ -146,6 +144,9 @@ trap_dispatch(struct trapframe *tf) {
     case IRQ_OFFSET + IRQ_KBD:
         c = cons_getc();
         cprintf("kbd [%03d] %c\n", c, c);
+        break;
+    case IRQ_OFFSET + IRQ_COM2:
+        kgdb_intr(tf);
         break;
     default:
         // in kernel, it must be a mistake

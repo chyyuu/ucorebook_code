@@ -1,4 +1,3 @@
-#include <types.h>
 #include <x86.h>
 #include <mmu.h>
 #include <memlayout.h>
@@ -77,11 +76,11 @@ gdt_init(void) {
     // Setup a TSS so that we can get the right stack when we trap from
     // user to the kernel. But not safe here, it's only a temporary value,
     // it will be set to KSTACKTOP in lab2.
-    ts.ts_esp0 = (uint32_t)stack0 + sizeof(stack0);
+    ts.ts_esp0 = (uintptr_t)stack0 + sizeof(stack0);
     ts.ts_ss0 = KERNEL_DS;
 
     // initialize the TSS filed of the gdt
-    gdt[SEG_TSS] = SEGTSS(STS_T32A, (uint32_t)&ts, sizeof(ts), DPL_KERNEL);
+    gdt[SEG_TSS] = SEGTSS(STS_T32A, (uintptr_t)&ts, sizeof(ts), DPL_KERNEL);
 
     // reload all segment registers
     lgdt(&gdt_pd);

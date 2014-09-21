@@ -1,4 +1,3 @@
-PROJ	:= 4.1
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -63,11 +62,7 @@ COPY	:= cp
 MKDIR   := mkdir -p
 MV		:= mv
 RM		:= rm -f
-AWK		:= awk
 SED		:= sed
-SH		:= sh
-TR		:= tr
-TOUCH	:= touch -c
 
 OBJDIR	:= obj
 BINDIR	:= bin
@@ -93,9 +88,6 @@ objfile = $(call toobj,$(1))
 asmfile = $(call cgtype,$(call toobj,$(1)),o,asm)
 outfile = $(call cgtype,$(call toobj,$(1)),o,out)
 symfile = $(call cgtype,$(call toobj,$(1)),o,sym)
-
-# for match pattern
-match = $(shell echo $(2) | $(AWK) '{for(i=1;i<=NF;i++){if(match("$(1)","^"$$(i)"$$")){exit 1;}}}'; echo $$?)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # include kernel/user
@@ -167,6 +159,12 @@ $(call create_target_host,sign,sign)
 
 # -------------------------------------------------------------------
 
+# create 'connect' tools
+$(call add_files_host,tools/connect.c,connect,connect)
+$(call create_target,connect,connect,,$(HOSTCC),$(HOSTCFLAGS) -lpthread)
+
+# -------------------------------------------------------------------
+
 # create ucore.img
 UCOREIMG	:= $(call totarget,ucore.img)
 
@@ -181,18 +179,9 @@ $(call create_target,ucore.img)
 
 $(call finish_all)
 
-IGNORE_ALLDEPS	= clean \
-				  dist-clean \
-				  grade \
-				  touch \
-				  print-.+ \
-				  handin
-
-ifeq ($(call match,$(MAKECMDGOALS),$(IGNORE_ALLDEPS)),0)
+ifneq ($(MAKECMDGOALS),clean)
 -include $(ALLDEPS)
 endif
-
-# files for grade script
 
 TARGETS: $(TARGETS)
 
@@ -217,38 +206,15 @@ debug-nox: $(UCOREIMG)
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
 
-.PHONY: grade touch
-
-GRADE_GDB_IN	:= .gdb.in
-GRADE_QEMU_OUT	:= .qemu.out
-HANDIN			:= proj$(PROJ)-handin.tar.gz
-
-TOUCH_FILES		:= kern/trap/trap.c
-
-MAKEOPTS		:= --quiet --no-print-directory
-
-grade:
-	$(V)$(MAKE) $(MAKEOPTS) clean
-	$(V)$(SH) tools/grade.sh
-
-touch:
-	$(V)$(foreach f,$(TOUCH_FILES),$(TOUCH) $(f))
-
-print-%:
-	@echo $($(shell echo $(patsubst print-%,%,$@) | $(TR) [a-z] [A-Z]))
-
-.PHONY: clean dist-clean handin packall
+.PHONY: clean
 clean:
-	$(V)$(RM) $(GRADE_GDB_IN) $(GRADE_QEMU_OUT)
 	-$(RM) -r $(OBJDIR) $(BINDIR)
 
-dist-clean: clean
-	-$(RM) $(HANDIN)
+.PHONY: kgdb kgdb-nox
+kgdb: $(UCOREIMG) $(call totarget,connect)
+	$(V)$(call totarget,connect) &
+	$(V)$(QEMU) -parallel stdio -hda $< -serial null -serial tcp:127.0.0.1:9875,server
 
-handin: packall
-	@echo Please visit http://learn.tsinghua.edu.cn and upload $(HANDIN). Thanks!
-
-packall: clean
-	@$(RM) -f $(HANDIN)
-	@tar -czf $(HANDIN) `find . -type f -o -type d | grep -v '^\.*$$' | grep -vF '$(HANDIN)'`
+kgdb-nox: $(UCOREIMG)
+	$(V)$(QEMU) -serial mon:stdio -hda $< -serial tcp:127.0.0.1:9875,server
 
