@@ -6,6 +6,7 @@
 #include <memlayout.h>
 #include <rb_tree.h>
 #include <sync.h>
+#include <shmem.h>
 
 //pre define
 struct mm_struct;
@@ -18,6 +19,8 @@ struct vma_struct {
     uint32_t vm_flags;       // flags of vma
     rb_node rb_link;         // redblack link which sorted by start addr of vma
     list_entry_t list_link;  // linear list link which sorted by start addr of vma
+    struct shmem_struct *shmem;
+    size_t shmem_off;
 };
 
 #define le2vma(le, member)                  \
@@ -30,6 +33,7 @@ struct vma_struct {
 #define VM_WRITE                0x00000002
 #define VM_EXEC                 0x00000004
 #define VM_STACK                0x00000008
+#define VM_SHARE                0x00000010
 
 // the control struct for a set of vma using the same PDT
 struct mm_struct {
@@ -53,6 +57,8 @@ void mm_destroy(struct mm_struct *mm);
 void vmm_init(void);
 int mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
         struct vma_struct **vma_store);
+int mm_map_shmem(struct mm_struct *mm, uintptr_t addr, uint32_t vm_flags,
+        struct shmem_struct *shmem, struct vma_struct **vma_store);
 int mm_unmap(struct mm_struct *mm, uintptr_t addr, size_t len);
 int dup_mmap(struct mm_struct *to, struct mm_struct *from);
 void exit_mmap(struct mm_struct *mm);

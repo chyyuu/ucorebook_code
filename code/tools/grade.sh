@@ -315,16 +315,16 @@ brkfun=readline
 
 ## check now!!
 
-quick_run 'Check MM'
+quick_run 'Check SHM'
 
-pts=10
+pts=5
 quick_check 'check pmm'                                         \
     'check_alloc_page() succeeded!'                             \
     'check_pgdir() succeeded!'                                  \
     'check_boot_pgdir() succeeded!'                             \
     'check_slab() succeeded!'
 
-pts=10
+pts=5
 quick_check 'check vmm'                                         \
     'check_vma_struct() succeeded!'                             \
     'page fault at 0x00000100: K/W [no page found].'            \
@@ -338,13 +338,19 @@ quick_check 'check ticks'                                       \
     '100 ticks'                                                 \
     'End of Test.'
 
-pts=25
+pts=15
 quick_check 'check mm_swap'                                     \
     'check_mm_swap: step1, mm_map ok.'                          \
     'check_mm_swap: step2, mm_unmap ok.'                        \
     'check_mm_swap: step3, exit_mmap ok.'                       \
     'check_mm_swap: step4, dup_mmap ok.'                        \
     'check_mm_swap() succeeded.'
+
+pts=20
+quick_check 'check mm_shm_swap'                                 \
+    'check_mm_shm_swap: step1, share memory ok.'                \
+    'check_mm_shm_swap: step2, dup_mmap ok.'                    \
+    'check_mm_shm_swap() succeeded.'
 
 ## print final-score
 show_final

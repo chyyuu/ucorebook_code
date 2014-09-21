@@ -35,13 +35,13 @@ lock_init(lock_t *lock) {
 
 static inline bool
 try_lock(lock_t *lock) {
-    return !test_and_set_bit(0, lock);
+    return test_and_set_bit(0, lock);
 }
 
 static inline void
 lock(lock_t *lock) {
     // deadlock
-    while (!try_lock(lock));
+    while (try_lock(lock));
 }
 
 static inline void

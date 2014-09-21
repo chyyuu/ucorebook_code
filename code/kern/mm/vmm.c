@@ -8,6 +8,7 @@
 #include <pmm.h>
 #include <x86.h>
 #include <swap.h>
+#include <shmem.h>
 
 /* 
   vmm design include two parts: mm_struct (mm) & vma_struct (vma)
@@ -65,6 +66,8 @@ vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags) {
         vma->vm_start = vm_start;
         vma->vm_end = vm_end;
         vma->vm_flags = vm_flags;
+        vma->shmem = NULL;
+        vma->shmem_off = 0;
     }
     return vma;
 }
@@ -72,6 +75,11 @@ vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags) {
 // vma_destroy - free vma_struct
 static void
 vma_destroy(struct vma_struct *vma) {
+    if (vma->vm_flags & VM_SHARE) {
+        if (shmem_ref_dec(vma->shmem) == 0) {
+            shmem_destroy(vma->shmem);
+        }
+    }
     kfree(vma);
 }
 
@@ -261,6 +269,7 @@ mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
         goto out;
     }
     ret = -E_NO_MEM;
+    vm_flags &= ~VM_SHARE;
     if ((vma = vma_create(start, end, vm_flags)) == NULL) {
         goto out;
     }
@@ -274,10 +283,35 @@ out:
     return ret;
 }
 
+int
+mm_map_shmem(struct mm_struct *mm, uintptr_t addr, uint32_t vm_flags,
+        struct shmem_struct *shmem, struct vma_struct **vma_store) {
+    if ((addr % PGSIZE) != 0 || shmem == NULL) {
+        return -E_INVAL;
+    }
+    int ret;
+    struct vma_struct *vma;
+    shmem_ref_inc(shmem);
+    if ((ret = mm_map(mm, addr, shmem->len, vm_flags, &vma)) != 0) {
+        shmem_ref_dec(shmem);
+        return ret;
+    }
+    vma->shmem = shmem;
+    vma->shmem_off = 0;
+    vma->vm_flags |= VM_SHARE;
+    if (vma_store != NULL) {
+        *vma_store = vma;
+    }
+    return 0;
+}
+
 static void
 vma_resize(struct vma_struct *vma, uintptr_t start, uintptr_t end) {
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(vma->vm_start <= start && start < end && end <= vma->vm_end);
+    if (vma->vm_flags & VM_SHARE) {
+        vma->shmem_off += start - vma->vm_start;
+    }
     vma->vm_start = start, vma->vm_end = end;
 }
 
@@ -355,8 +389,16 @@ dup_mmap(struct mm_struct *to, struct mm_struct *from) {
         if (nvma == NULL) {
             return -E_NO_MEM;
         }
+        else {
+            if (vma->vm_flags & VM_SHARE) {
+                nvma->shmem = vma->shmem;
+                nvma->shmem_off = vma->shmem_off;
+                shmem_ref_inc(vma->shmem);
+            }
+        }
         insert_vma_struct(to, nvma);
-        if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, 0) != 0) {
+        bool share = (vma->vm_flags & VM_SHARE);
+        if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, share) != 0) {
             return -E_NO_MEM;
         }
     }
@@ -576,21 +618,36 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     addr = ROUNDDOWN(addr, PGSIZE);
 
     ret = -E_NO_MEM;
-
     pte_t *ptep;
-    // try to find a pte, if pte's PT(Page Table) isn't existed, then create a PT.
-    // (notice the 3th parameter '1')
+
     if ((ptep = get_pte(mm->pgdir, addr, 1)) == NULL) {
         goto failed;
     }
-    
-    if (*ptep == 0) { // if the phy addr isn't exist, then alloc a page & map the phy addr with logical addr
-        if (pgdir_alloc_page(mm->pgdir, addr, perm) == NULL) {
-            goto failed;
+    if (*ptep == 0) {
+        if (!(vma->vm_flags & VM_SHARE)) {
+            if (pgdir_alloc_page(mm->pgdir, addr, perm) == NULL) {
+                goto failed;
+            }
+        }
+        else {
+            lock_shmem(vma->shmem);
+            uintptr_t shmem_addr = addr - vma->vm_start + vma->shmem_off;
+            pte_t *sh_ptep = shmem_get_entry(vma->shmem, shmem_addr, 1);
+            if (sh_ptep == NULL || *sh_ptep == 0) {
+                unlock_shmem(vma->shmem);
+                goto failed;
+            }
+            unlock_shmem(vma->shmem);
+            if (*sh_ptep & PTE_P) {
+                page_insert(mm->pgdir, pa2page(*sh_ptep), addr, perm);
+            }
+            else {
+                swap_duplicate(*ptep);
+                *ptep = *sh_ptep;
+            }
         }
     }
-    else { // if this pte is a swap entry, then load datafrom disk to a page with phy addr
-           // and call page_insert to map the phy addr with logical addr  
+    else {
         struct Page *page;
         if ((ret = swap_in_page(*ptep, &page)) != 0) {
             goto failed;

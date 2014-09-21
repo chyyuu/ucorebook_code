@@ -12,6 +12,7 @@
 #include <sync.h>
 #include <string.h>
 #include <stdlib.h>
+#include <shmem.h>
 
 /* ------------- swap in/out & page replacement mechanism design&implementation -------------
 Hardware Requrirement:
@@ -108,6 +109,7 @@ static list_entry_t hash_list[HASH_LIST_SIZE];
 
 static void check_swap(void);
 static void check_mm_swap(void);
+static void check_mm_shm_swap(void);
 
 static lock_t swap_in_lock;
 
@@ -175,6 +177,7 @@ swap_init(void) {
 
     check_swap();
     check_mm_swap();
+    check_mm_shm_swap();
 }
 
 // try_free_pages - calculate pressure to estimate the number(pressure<<5) of needed page frames in ucore currently, 
@@ -518,6 +521,14 @@ swap_out_vma(struct mm_struct *mm, struct vma_struct *vma, uintptr_t addr, size_
             tlb_invalidate(mm->pgdir, addr);
             mm->swap_address = addr + PGSIZE;
             free_count ++, require --;
+            if ((vma->vm_flags & VM_SHARE) && page_ref(page) == 1) {
+                uintptr_t shmem_addr = addr - vma->vm_start + vma->shmem_off;
+                pte_t *sh_ptep = shmem_get_entry(vma->shmem, shmem_addr, 0);
+                assert(sh_ptep != NULL && *sh_ptep != 0);
+                if (*sh_ptep & PTE_P) {
+                    shmem_insert_entry(vma->shmem, shmem_addr, entry);
+                }
+            }
         }
     try_next_entry:
         addr += PGSIZE;
@@ -1126,5 +1137,175 @@ check_mm_swap(void) {
     assert(slab_allocated_store == slab_allocated());
 
     cprintf("check_mm_swap() succeeded.\n");
+}
+
+static void
+check_mm_shm_swap(void) {
+    size_t nr_free_pages_store = nr_free_pages();
+    size_t slab_allocated_store = slab_allocated();
+
+    int ret, i;
+    for (i = 0; i < max_swap_offset; i ++) {
+        assert(mem_map[i] == SWAP_UNUSED);
+    }
+
+    extern struct mm_struct *check_mm_struct;
+    assert(check_mm_struct == NULL);
+
+    struct mm_struct *mm0 = mm_create(), *mm1;
+    assert(mm0 != NULL && list_empty(&(mm0->mmap_list)));
+
+    struct Page *page = alloc_page();
+    assert(page != NULL);
+    pde_t *pgdir = page2kva(page);
+    memcpy(pgdir, boot_pgdir, PGSIZE);
+    pgdir[PDX(VPT)] = PADDR(pgdir) | PTE_P | PTE_W;
+
+    mm0->pgdir = pgdir;
+    check_mm_struct = mm0;
+    lcr3(PADDR(mm0->pgdir));
+
+    uint32_t vm_flags = VM_WRITE | VM_READ;
+
+    uintptr_t addr0, addr1;
+
+    addr0 = 0;
+    do {
+        if ((ret = mm_map(mm0, addr0, PTSIZE * 4, vm_flags, NULL)) == 0) {
+            break;
+        }
+        addr0 += PTSIZE;
+    } while (addr0 != 0);
+
+    assert(ret == 0 && addr0 != 0 && mm0->map_count == 1);
+
+    ret = mm_unmap(mm0, addr0, PTSIZE * 4);
+    assert(ret == 0 && mm0->map_count == 0);
+
+    struct shmem_struct *shmem = shmem_create(PTSIZE * 2);
+    assert(shmem != NULL && shmem_ref(shmem) == 0);
+
+    // step1: check share memory
+
+    struct vma_struct *vma;
+
+    addr1 = addr0 + PTSIZE * 2;
+    ret = mm_map_shmem(mm0, addr0, vm_flags, shmem, &vma);
+    assert(ret == 0);
+    assert((vma->vm_flags & VM_SHARE) && vma->shmem == shmem && shmem_ref(shmem) == 1);
+    ret = mm_map_shmem(mm0, addr1, vm_flags, shmem, &vma);
+    assert(ret == 0);
+    assert((vma->vm_flags & VM_SHARE) && vma->shmem == shmem && shmem_ref(shmem) == 2);
+
+    // page fault
+
+    for (i = 0; i < 4; i ++) {
+        *(char *)(addr0 + i * PGSIZE) = (char)(i * i);
+    }
+    for (i = 0; i < 4; i ++) {
+        assert(*(char *)(addr1 + i * PGSIZE) == (char)(i * i));
+    }
+
+    for (i = 0; i < 4; i ++) {
+        *(char *)(addr1 + i * PGSIZE) = (char)(- i * i);
+    }
+    for (i = 0; i < 4; i ++) {
+        assert(*(char *)(addr1 + i * PGSIZE) == (char)(- i * i));
+    }
+
+    // check swap
+
+    ret = swap_out_mm(mm0, 8) + swap_out_mm(mm0, 8);
+    assert(ret == 8 && nr_active_pages == 4 && nr_inactive_pages == 0);
+
+    refill_inactive_scan();
+    assert(nr_active_pages == 0 && nr_inactive_pages == 4);
+
+    // write & read again
+
+    memset((void *)addr0, 0x77, PGSIZE);
+    for (i = 0; i < PGSIZE; i ++) {
+        assert(*(char *)(addr1 + i) == (char)0x77);
+    }
+
+    // check unmap
+
+    ret = mm_unmap(mm0, addr1, PGSIZE * 4);
+    assert(ret == 0);
+
+    addr0 += 4 * PGSIZE, addr1 += 4 * PGSIZE;
+    *(char *)(addr0) = (char)(0xDC);
+    assert(*(char *)(addr1) == (char)(0xDC));
+    *(char *)(addr1 + PTSIZE) = (char)(0xDC);
+    assert(*(char *)(addr0 + PTSIZE) == (char)(0xDC));
+
+    cprintf("check_mm_shm_swap: step1, share memory ok.\n");
+
+    // setup mm1
+
+    mm1 = mm_create();
+    assert(mm1 != NULL);
+
+
+    page = alloc_page();
+    assert(page != NULL);
+    pgdir = page2kva(page);
+    memcpy(pgdir, boot_pgdir, PGSIZE);
+    pgdir[PDX(VPT)] = PADDR(pgdir) | PTE_P | PTE_W;
+    mm1->pgdir = pgdir;
+
+
+    ret = dup_mmap(mm1, mm0);
+    assert(ret == 0 && shmem_ref(shmem) == 4);
+
+    // switch to mm1
+
+    check_mm_struct = mm1;
+    lcr3(PADDR(mm1->pgdir));
+
+    for (i = 0; i < 4; i ++) {
+        *(char *)(addr0 + i * PGSIZE) = (char)(0x57 + i);
+    }
+    for (i = 0; i < 4; i ++) {
+        assert(*(char *)(addr1 + i * PGSIZE) == (char)(0x57 + i));
+    }
+
+    check_mm_struct = mm0;
+    lcr3(PADDR(mm0->pgdir));
+
+    for (i = 0; i < 4; i ++) {
+        assert(*(char *)(addr0 + i * PGSIZE) == (char)(0x57 + i));
+        assert(*(char *)(addr1 + i * PGSIZE) == (char)(0x57 + i));
+    }
+
+    swap_out_mm(mm1, 4);
+    exit_mmap(mm1);
+
+    free_page(kva2page(mm1->pgdir));
+    mm_destroy(mm1);
+
+    assert(shmem_ref(shmem) == 2);
+
+    cprintf("check_mm_shm_swap: step2, dup_mmap ok.\n");
+
+    // free memory
+
+    check_mm_struct = NULL;
+    lcr3(boot_cr3);
+
+    exit_mmap(mm0);
+    free_page(kva2page(mm0->pgdir));
+    mm_destroy(mm0);
+
+    refill_inactive_scan();
+    page_launder();
+    for (i = 0; i < max_swap_offset; i ++) {
+        assert(mem_map[i] == SWAP_UNUSED);
+    }
+
+    assert(nr_free_pages_store == nr_free_pages());
+    assert(slab_allocated_store == slab_allocated());
+
+    cprintf("check_mm_shm_swap() succeeded.\n");
 }
 
