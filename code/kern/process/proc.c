@@ -110,6 +110,8 @@ alloc_proc(void) {
         proc->wait_state = 0;
         proc->cptr = proc->optr = proc->yptr = NULL;
         list_init(&(proc->thread_group));
+        proc->rq = NULL;
+        list_init(&(proc->run_link));
     }
     return proc;
 }
@@ -1069,7 +1071,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(mmaptest);
+    KERNEL_EXECVE(matrix);
 #endif
     panic("user_main execve failed.\n");
 }

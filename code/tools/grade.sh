@@ -324,10 +324,10 @@ qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 brkfun=readline
 
 default_check() {
-    pts=3
+    pts=7
     check_regexps "$@"
 
-    pts=2
+    pts=3
     quick_check 'check output'                                  \
         'check_alloc_page() succeeded!'                         \
         'check_pgdir() succeeded!'                              \
@@ -350,84 +350,7 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'brkfreetest' -check default_check               \
-        'kernel_execve: pid = 3, name = "brkfreetest".'         \
-        'page fault!!'                                          \
-        '  trap 0x0000000e Page Fault'                          \
-        '  err  0x00000006'                                     \
-      - '  eip  0x008.....'                                     \
-      - '  esp  0xaff.....'                                     \
-        'killed by kernel.'                                     \
-        'brkfreetest pass.'                                     \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'brktest' -check default_check                   \
-        'kernel_execve: pid = 3, name = "brktest".'             \
-        'I am going to eat out all the mem, MU HA HA!!.'        \
-        'I ate 5000 slots.'                                     \
-        'I ate 10000 slots.'                                    \
-        'I ate (at least) 41000000 byte memory.'                \
-        'I free all the memory.(0)'                             \
-        'brktest pass.'                                         \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'
-
-pts=5
-timeout=240
-
-run_test -prog 'sleep'                                          \
-        'kernel_execve: pid = 3, name = "sleep".'               \
-        'I am child and I will eat out all the memory.'         \
-        'I ate 1000 slots.'                                     \
-        'I ate 5000 slots.'                                     \
-        'sleep 1 x 100 slices.'                                 \
-        'sleep 3 x 100 slices.'                                 \
-        'sleep 7 x 100 slices.'                                 \
-        'sleep 10 x 100 slices.'                                \
-      - 'use 1... msecs.'                                       \
-        'sleep pass.'                                           \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    !   '  trap 0x0000000e Page Fault'                          \
-    !   'killed by kernel.'                                     \
-    ! - 'user panic at .*'
-
-run_test -prog 'sleepkill'                                      \
-        'kernel_execve: pid = 3, name = "sleepkill".'           \
-        'sleepkill pass.'                                       \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-pts=10
-timeout=
-
-run_test -prog 'mmaptest'                                       \
-        'kernel_execve: pid = 3, name = "mmaptest".'            \
-        'mmap step1 ok.'                                        \
-        'munmap step1 ok.'                                      \
-        'mmap step2 ok.'                                        \
-        'mmap step3 ok.'                                        \
-        'mumap step2 ok.'                                       \
-        'mmaptest pass.'                                        \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'shmemtest'                                      \
-        'kernel_execve: pid = 3, name = "shmemtest".'           \
-        'shmemtest pass.'                                       \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-show_part A
-
-pts=15
-
-run_test -prog 'threadtest'                                     \
+run_test -prog 'threadtest' -check default_check                \
         'kernel_execve: pid = 3, name = "threadtest".'          \
         'thread ok.'                                            \
         'child ok.'                                             \
@@ -436,77 +359,27 @@ run_test -prog 'threadtest'                                     \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-run_test -prog 'threadfork'                                     \
+run_test -prog 'threadfork' -check default_check                \
         'kernel_execve: pid = 3, name = "threadfork".'          \
         'threadfork pass.'                                      \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-run_test -prog 'threadwork'                                     \
-        'kernel_execve: pid = 3, name = "threadwork".'          \
-        'thread ok.'                                            \
-      - 'i am 00, .., i got ........'                           \
-      - 'i am 07, .., i got ........'                           \
-      - 'i am 13, .., i got ........'                           \
-      - 'i am 19, .., i got ........'                           \
-      - 'i am 23, .., i got ........'                           \
-      - 'i am 29, .., i got ........'                           \
-      - 'i am 37, .., i got ........'                           \
-      - 'i am 43, .., i got ........'                           \
-      - 'i am 46, .., i got ........'                           \
-      - '  |-- PTE(00001) afd.....-afe..... 00001000 urw'       \
-      - '  |-- PTE(00001) afe.....-aff..... 00001000 urw'       \
-      - '  |-- PTE(00001) aff.....-b00..... 00001000 urw'       \
-        'thread wait ok.'                                       \
-        'loop init ok.'                                         \
-        'threadwork pass.'                                      \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'threadgroup1'                                   \
-        'kernel_execve: pid = 3, name = "threadgroup1".'        \
-        'thread ok.'                                            \
-        'yield 0.'                                              \
-        'yield 1.'                                              \
-        'yield 2.'                                              \
-        'exit thread group now.'                                \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'threadgroup2'                                   \
-        'kernel_execve: pid = 3, name = "threadgroup2".'        \
-        'thread ok.'                                            \
-        'yield 0.'                                              \
-        'yield 1.'                                              \
-        'yield 2.'                                              \
-        'exit thread group now.'                                \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
 pts=20
-
-run_test -prog 'buggy_wait'                                     \
-        'kernel_execve: pid = 3, name = "buggy_wait".'          \
-        'child munmap ok.'                                      \
-        'buggy_wait pass.'                                      \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'buggy_wait2'                                    \
-        'kernel_execve: pid = 3, name = "buggy_wait2".'         \
-        'child fork ok.'                                        \
-        'buggy_wait2 pass.'                                     \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-pts=25
 timeout=500
+run_test -prog 'matrix'                                         \
+        'kernel_execve: pid = 3, name = "matrix".'              \
+        'fork ok.'                                              \
+        'pid 4 done!.'                                          \
+        'pid 7 done!.'                                          \
+        'pid 13 done!.'                                         \
+        'pid 17 done!.'                                         \
+        'pid 23 done!.'                                         \
+        'matrix pass.'                                          \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
 
 run_test -prog 'primer'                                         \
         'kernel_execve: pid = 3, name = "primer".'              \
@@ -572,8 +445,6 @@ run_test -prog 'primer'                                         \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
-
-show_part B
 
 ## print final-score
 show_final

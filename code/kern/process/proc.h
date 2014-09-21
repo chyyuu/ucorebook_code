@@ -59,6 +59,8 @@ struct proc_struct {
     uint32_t wait_state;                        // Process waiting state: the reason of sleeping
     struct proc_struct *cptr, *yptr, *optr;     // Process's children, yonger sibling, Old sibling
     list_entry_t thread_group;                  // the threads list including this proc which share resource (mem/file/sem...)
+    struct run_queue *rq;                       // running queue contains Process
+    list_entry_t run_link;                      // the entry linked in run queue
 };
 
 #define PF_EXITING                  0x00000001      // getting shutdown
