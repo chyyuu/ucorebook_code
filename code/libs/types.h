@@ -26,5 +26,8 @@ typedef unsigned long long uint64_t;
 typedef int32_t intptr_t;
 typedef uint32_t uintptr_t;
 
+/* size_t is used for memory object sizes */
+typedef uintptr_t size_t;
+
 #endif /* !__LIBS_TYPES_H__ */
 

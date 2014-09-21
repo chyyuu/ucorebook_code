@@ -61,6 +61,7 @@ COPY	:= cp
 MKDIR   := mkdir -p
 MV		:= mv
 RM		:= rm -f
+SED		:= sed
 
 OBJDIR	:= obj
 BINDIR	:= bin
@@ -88,10 +89,41 @@ outfile = $(call cgtype,$(call toobj,$(1)),o,out)
 symfile = $(call cgtype,$(call toobj,$(1)),o,sym)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# include kernel/user
 
 INCLUDE	+= libs/
 
 CFLAGS	+= $(addprefix -I,$(INCLUDE))
+
+LIBDIR	+= libs
+
+$(call add_files_cc,$(call listf_cc,$(LIBDIR)),libs,)
+
+# -------------------------------------------------------------------
+# kernel
+
+KINCLUDE	+= kern/driver
+
+KSRCDIR		+= kern/init \
+			   kern/libs \
+			   kern/driver
+
+KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
+
+$(call add_files_cc,$(call listf_cc,$(KSRCDIR)),kernel,$(KCFLAGS))
+
+KOBJS	= $(call read_packet,kernel libs)
+
+# create kernel target
+kernel = $(call totarget,kernel)
+
+$(kernel): $(KOBJS)
+	@echo + ld $@
+	$(V)$(LD) $(LDFLAGS) -Ttext 0x100000 -e kern_init -o $@ $(KOBJS)
+	@$(OBJDUMP) -S $@ > $(call asmfile,kernel)
+	@$(OBJDUMP) -t $@ | $(SED) '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(call symfile,kernel)
+
+$(call create_target,kernel)
 
 # -------------------------------------------------------------------
 
@@ -121,9 +153,10 @@ $(call create_target_host,sign,sign)
 # create ucore.img
 UCOREIMG	:= $(call totarget,ucore.img)
 
-$(UCOREIMG): $(call totarget,bootblock)
+$(UCOREIMG): $(kernel) $(bootblock)
 	$(V)dd if=/dev/zero of=$@ count=10000
-	$(V)dd if=$< of=$@ conv=notrunc
+	$(V)dd if=$(bootblock) of=$@ conv=notrunc
+	$(V)dd if=$(kernel) of=$@ seek=1 conv=notrunc
 
 $(call create_target,ucore.img)
 

@@ -28,59 +28,10 @@
  *    and a stack so C code then run, then calls bootmain()
  *
  *  * bootmain() in this file takes over, reads in the kernel and jumps to it.
- * *********************************************************************/
+ * */
 
-#define LPTPORT         0x378
-#define CRTPORT         0x3D4
 #define SECTSIZE        512
 #define ELFHDR          ((struct elfhdr *)0x10000)      // scratch space
-
-static uint16_t *crt = (uint16_t *) 0xB8000;            // CGA memory
-
-/* stupid I/O delay routine necessitated by historical PC design flaws */
-static void
-delay(void) {
-    inb(0x84);
-    inb(0x84);
-    inb(0x84);
-    inb(0x84);
-}
-
-/* lpt_putc - copy console output to parallel port */
-static void
-lpt_putc(int c) {
-    int i;
-    for (i = 0; !(inb(LPTPORT + 1) & 0x80) && i < 12800; i ++) {
-        delay();
-    }
-    outb(LPTPORT + 0, c);
-    outb(LPTPORT + 2, 0x08 | 0x04 | 0x01);
-    outb(LPTPORT + 2, 0x08);
-}
-
-/* cga_putc - print character to console */
-static void
-cga_putc(int c) {
-    int pos;
-
-    // cursor position: col + 80*row.
-    outb(CRTPORT, 14);
-    pos = inb(CRTPORT + 1) << 8;
-    outb(CRTPORT, 15);
-    pos |= inb(CRTPORT + 1);
-
-    if (c == '\n') {
-        pos += 80 - pos % 80;
-    }
-    else {
-        crt[pos ++] = (c & 0xff) | 0x0700;
-    }
-
-    outb(CRTPORT, 14);
-    outb(CRTPORT + 1, pos >> 8);
-    outb(CRTPORT, 15);
-    outb(CRTPORT + 1, pos);
-}
 
 /* waitdisk - wait for disk ready */
 static void
@@ -131,13 +82,6 @@ readseg(uintptr_t va, uint32_t count, uint32_t offset) {
     }
 }
 
-/* cons_puts - print a string to console */
-static void
-cons_putc(int c) {
-    lpt_putc(c);
-    cga_putc(c);
-}
-
 /* bootmain - the entry of bootloader */
 void
 bootmain(void) {
@@ -149,13 +93,20 @@ bootmain(void) {
         goto bad;
     }
 
-    cons_putc('B');
+    struct proghdr *ph, *eph;
 
-    /* do nothing */
-    while (1);
+    // load each program segment (ignores ph flags)
+    ph = (struct proghdr *)((uintptr_t)ELFHDR + ELFHDR->e_phoff);
+    eph = ph + ELFHDR->e_phnum;
+    for (; ph < eph; ph ++) {
+        readseg(ph->p_va & 0xFFFFFF, ph->p_memsz, ph->p_offset);
+    }
+
+    // call the entry point from the ELF header
+    // note: does not return
+    ((void (*)(void))(ELFHDR->e_entry & 0xFFFFFF))();
 
 bad:
-    cons_putc('E');
     outw(0x8A00, 0x8A00);
     outw(0x8A00, 0x8E00);
 
