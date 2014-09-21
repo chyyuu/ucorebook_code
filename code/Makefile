@@ -1,4 +1,4 @@
-PROJ	:= 7
+PROJ	:= 8
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -116,7 +116,8 @@ KINCLUDE	+= kern/debug/ \
 			   kern/trap/ \
 			   kern/mm/ \
 			   kern/libs/ \
-			   kern/sync/
+			   kern/sync/ \
+			   kern/fs/
 
 KSRCDIR		+= kern/init \
 			   kern/libs \
@@ -124,7 +125,8 @@ KSRCDIR		+= kern/init \
 			   kern/driver \
 			   kern/trap \
 			   kern/mm \
-			   kern/sync
+			   kern/sync \
+			   kern/fs
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
@@ -180,6 +182,16 @@ $(UCOREIMG): $(kernel) $(bootblock)
 
 $(call create_target,ucore.img)
 
+# -------------------------------------------------------------------
+
+# create swap.img
+SWAPIMG		:= $(call totarget,swap.img)
+
+$(SWAPIMG):
+	$(V)dd if=/dev/zero of=$@ bs=1M count=128
+
+$(call create_target,swap.img)
+
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 $(call finish_all)
@@ -201,22 +213,24 @@ TARGETS: $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
 
-.PHONY: qemu qemu-nox debug debug-nox
-qemu: $(UCOREIMG)
-	$(V)$(QEMU) -parallel stdio -hda $< -serial null
+QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback
 
-qemu-nox: $(UCOREIMG)
-	$(V)$(QEMU) -serial mon:stdio -hda $< -nographic
+.PHONY: qemu qemu-nox debug debug-nox
+qemu: $(UCOREIMG) $(SWAPIMG)
+	$(V)$(QEMU) -parallel stdio $(QEMUOPTS) -serial null
+
+qemu-nox: $(UCOREIMG) $(SWAPIMG)
+	$(V)$(QEMU) -serial mon:stdio $(QEMUOPTS) -nographic
 
 TERMINAL := gnome-terminal
 
-debug: $(UCOREIMG)
-	$(V)$(QEMU) -S -s -parallel stdio -hda $< -serial null &
+debug: $(UCOREIMG) $(SWAPIMG)
+	$(V)$(QEMU) -S -s -parallel stdio $(QEMUOPTS) -serial null &
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
 
-debug-nox: $(UCOREIMG)
-	$(V)$(QEMU) -S -s -serial mon:stdio -hda $< -nographic &
+debug-nox: $(UCOREIMG) $(SWAPIMG)
+	$(V)$(QEMU) -S -s -serial mon:stdio $(QEMUOPTS) -nographic &
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
 

@@ -304,15 +304,18 @@ quick_check() {
 ## kernel image
 osimg=$(make_print ucoreimg)
 
+## swap image
+swapimg=$(make_print swapimg)
+
 ## set default qemu-options
-qemuopts="-hda $osimg"
+qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 
 ## set break-function, default is readline
 brkfun=readline
 
 ## check now!!
 
-quick_run 'Check VMM'
+quick_run 'Check SWAP'
 
 pts=5
 quick_check 'check pmm'                                         \
@@ -329,16 +332,24 @@ quick_check 'check page table'                                  \
     '  |-- PTE(000e0) faf00000-fafe0000 000e0000 urw'           \
     '  |-- PTE(00001) fafeb000-fafec000 00001000 -rw'
 
-pts=10
+pts=5
 quick_check 'check slab'                                        \
     'check_slab() succeeded!'
 
-pts=25
+pts=10
 quick_check 'check vmm'                                         \
     'check_vma_struct() succeeded!'                             \
     'page fault at 0x00000100: K/W [no page found].'            \
     'check_pgfault() succeeded!'                                \
     'check_vmm() succeeded.'
+
+pts=20
+quick_check 'check swap page fault'                             \
+    'page fault at 0x00000000: K/W [no page found].'            \
+    'page fault at 0x00001001: K/W [no page found].'            \
+    'page fault at 0x00001000: K/R [no page found].'            \
+    'page fault at 0x00000000: K/R [no page found].'            \
+    'check_swap() succeeded.'
 
 pts=5
 quick_check 'check ticks'                                       \

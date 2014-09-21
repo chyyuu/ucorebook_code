@@ -8,6 +8,8 @@
 #include <assert.h>
 #include <console.h>
 #include <vmm.h>
+#include <sync.h>
+#include <monitor.h>
 #include <kdebug.h>
 
 #define TICK_NUM 100
@@ -174,6 +176,10 @@ trap_dispatch(struct trapframe *tf) {
             cprintf("%s [%03d] %c\n",
                     (tf->tf_trapno != IRQ_OFFSET + IRQ_KBD) ? "serial" : "kbd", c, c);
         }
+        break;
+    case IRQ_OFFSET + IRQ_IDE1:
+    case IRQ_OFFSET + IRQ_IDE2:
+        /* do nothing */
         break;
     default:
         // in kernel, it must be a mistake

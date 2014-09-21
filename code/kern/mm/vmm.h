@@ -37,6 +37,7 @@ struct mm_struct {
     struct vma_struct *mmap_cache; // current accessed vma, used for speed purpose
     pde_t *pgdir;                  // the PDT of these vma
     int map_count;                 // the count of these vma
+    uintptr_t swap_address;
 };
 
 #define RB_MIN_MAP_COUNT        32 // If the count of vma >32 then redblack tree link is used

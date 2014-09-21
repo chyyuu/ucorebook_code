@@ -8,6 +8,7 @@
 #include <buddy_pmm.h>
 #include <sync.h>
 #include <slab.h>
+#include <swap.h>
 #include <error.h>
 
 /* *
@@ -151,8 +152,8 @@ init_memmap(struct Page *base, size_t n) {
 //alloc_pages - call pmm->alloc_pages to allocate a continuous n*PAGESIZE memory 
 struct Page *
 alloc_pages(size_t n) {
-    struct Page *page;
     bool intr_flag;
+    struct Page *page;
     local_intr_save(intr_flag);
     {
         page = pmm_manager->alloc_pages(n);
@@ -383,11 +384,23 @@ static inline void
 page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
     if (*ptep & PTE_P) {
         struct Page *page = pte2page(*ptep);
-        if (page_ref_dec(page) == 0) {
-            free_page(page);
+        if (!PageSwap(page)) {
+            if (page_ref_dec(page) == 0) {
+                free_page(page);
+            }
+        }
+        else {
+            if (*ptep & PTE_D) {
+                SetPageDirty(page);
+            }
+            page_ref_dec(page);
         }
         *ptep = 0;
         tlb_invalidate(pgdir, la);
+    }
+    else if (*ptep != 0) {
+        swap_remove_entry(*ptep);
+        *ptep = 0;
     }
 }
 
@@ -415,15 +428,15 @@ page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm) {
         return -E_NO_MEM;
     }
     page_ref_inc(page);
-    if (*ptep & PTE_P) {
-        struct Page *p = pte2page(*ptep);
-        if (p == page) {
+    if (*ptep != 0) {
+        if ((*ptep & PTE_P) && pte2page(*ptep) == page) {
             page_ref_dec(page);
+            goto out;
         }
-        else {
-            page_remove_pte(pgdir, la, ptep);
-        }
+        page_remove_pte(pgdir, la, ptep);
     }
+
+out:
     *ptep = page2pa(page) | PTE_P | perm;
     tlb_invalidate(pgdir, la);
     return 0;

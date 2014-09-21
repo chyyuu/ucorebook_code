@@ -245,6 +245,7 @@ struct taskstate {
                                                 // The PTE_AVAIL bits aren't used by the kernel or interpreted by the
                                                 // hardware, so user processes are allowed to set them arbitrarily.
 
+#define PTE_SWAP        (PTE_A | PTE_D)
 #define PTE_USER        (PTE_U | PTE_W | PTE_P)
 
 /* Control Register flags */

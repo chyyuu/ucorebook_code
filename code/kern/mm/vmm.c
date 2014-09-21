@@ -7,6 +7,7 @@
 #include <error.h>
 #include <pmm.h>
 #include <x86.h>
+#include <swap.h>
 
 /* 
   vmm design include two parts: mm_struct (mm) & vma_struct (vma)
@@ -51,6 +52,7 @@ mm_create(void) {
         mm->mmap_cache = NULL;
         mm->pgdir = NULL;
         mm->map_count = 0;
+        mm->swap_address = 0;
     }
     return mm;
 }
@@ -65,6 +67,12 @@ vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags) {
         vma->vm_flags = vm_flags;
     }
     return vma;
+}
+
+// vma_destroy - free vma_struct
+static void
+vma_destroy(struct vma_struct *vma) {
+    kfree(vma);
 }
 
 // find_vma_rb - find a vma  (vma->vm_start <= addr <= vma_vm_end) in rb tree
@@ -206,10 +214,10 @@ mm_destroy(struct mm_struct *mm) {
     if (mm->mmap_tree != NULL) {
         rb_tree_destroy(mm->mmap_tree);
     }
-    list_entry_t *list = &(mm->mmap_list), *le;
-    while ((le = list_next(list)) != list) {
+    while (!list_empty(&(mm->mmap_list))) {
+        list_entry_t *le = list_next(&(mm->mmap_list));
         list_del(le);
-        kfree(le2vma(le, list_link));
+        vma_destroy(le2vma(le, list_link));
     }
     kfree(mm);
 }
@@ -366,8 +374,25 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
 
     ret = -E_NO_MEM;
 
-    if (pgdir_alloc_page(mm->pgdir, addr, perm) == 0) {
+    pte_t *ptep;
+    // try to find a pte, if pte's PT(Page Table) isn't existed, then create a PT.
+    // (notice the 3th parameter '1')
+    if ((ptep = get_pte(mm->pgdir, addr, 1)) == NULL) {
         goto failed;
+    }
+    
+    if (*ptep == 0) { // if the phy addr isn't exist, then alloc a page & map the phy addr with logical addr
+        if (pgdir_alloc_page(mm->pgdir, addr, perm) == NULL) {
+            goto failed;
+        }
+    }
+    else { // if this pte is a swap entry, then load datafrom disk to a page with phy addr
+           // and call page_insert to map the phy addr with logical addr  
+        struct Page *page;
+        if ((ret = swap_in_page(*ptep, &page)) != 0) {
+            goto failed;
+        }
+        page_insert(mm->pgdir, page, addr, perm);
     }
     ret = 0;
 
