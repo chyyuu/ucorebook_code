@@ -316,7 +316,7 @@ quick_run 'Check PMM'
 
 pts=20
 quick_check 'check pmm'                                         \
-    'memory management: bestfit_pmm_manager'                     \
+    'memory management: worstfit_pmm_manager'                    \
     'check_alloc_page() succeeded!'                             \
     'check_pgdir() succeeded!'                                  \
     'check_boot_pgdir() succeeded!'

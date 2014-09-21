@@ -1,11 +1,11 @@
 #include <pmm.h>
 #include <list.h>
 #include <string.h>
-#include <bestfit_pmm.h>
+#include <worstfit_pmm.h>
 
-/* In the best-fit algorithm, the allocator will continue searching to find a suitable block so that the
-   block size is bigger and most closer to the block size of request. This algorithm will produce a lot of
-   small free blocks which can not be allocated again.
+/* In the worst-fit algorithm (the reverse of best-fit algorithm), the allocator allocates the largest block 
+   available in the available storage list. The idea behind the worst-fit is to reduce the rate of production
+   of small blocks which are quite common when best-fit alogrithm is used for memory allocation.
    Please see Page 196~198, Section 8.2 of Yan Wei Ming's chinese book "Data Structure -- C programming language"
 */
 static free_area_t free_area;
@@ -14,13 +14,13 @@ static free_area_t free_area;
 #define nr_free (free_area.nr_free)
 
 static void
-bestfit_init(void) {
+worstfit_init(void) {
     list_init(&free_list);
     nr_free = 0;
 }
 
 static void
-bestfit_init_memmap(struct Page *base, size_t n) {
+worstfit_init_memmap(struct Page *base, size_t n) {
     assert(n > 0);
     struct Page *p = base;
     for (; p != base + n; p ++) {
@@ -35,7 +35,7 @@ bestfit_init_memmap(struct Page *base, size_t n) {
 }
 
 static struct Page *
-bestfit_alloc_pages(size_t n) {
+worstfit_alloc_pages(size_t n) {
     assert(n > 0);
     if (n > nr_free) {
         return NULL;
@@ -45,7 +45,7 @@ bestfit_alloc_pages(size_t n) {
     while ((le = list_next(le)) != &free_list) {
         struct Page *p = le2page(le, page_link);
         if (p->property >= n) {
-            if (page == NULL || p->property < page->property) {
+            if (page == NULL || p->property > page->property) {
                 page = p;
             }
         }
@@ -64,7 +64,7 @@ bestfit_alloc_pages(size_t n) {
 }
 
 static void
-bestfit_free_pages(struct Page *base, size_t n) {
+worstfit_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
     struct Page *p = base;
     for (; p != base + n; p ++) {
@@ -95,7 +95,7 @@ bestfit_free_pages(struct Page *base, size_t n) {
 }
 
 static size_t
-bestfit_nr_free_pages(void) {
+worstfit_nr_free_pages(void) {
     return nr_free;
 }
 
@@ -151,7 +151,7 @@ basic_check(void) {
 }
 
 static void
-bestfit_check(void) {
+worstfit_check(void) {
     int count = 0, total = 0;
     list_entry_t *le = &free_list;
     while ((le = list_next(le)) != &free_list) {
@@ -162,6 +162,7 @@ bestfit_check(void) {
     assert(total == nr_free_pages());
 
     basic_check();
+
     struct Page *p0 = alloc_pages(5), *p1, *p2;
     assert(p0 != NULL);
     assert(!PageProperty(p0));
@@ -187,7 +188,7 @@ bestfit_check(void) {
     assert(PageProperty(p0) && p0->property == 1);
     assert(PageProperty(p1) && p1->property == 3);
 
-    assert((p0 = alloc_page()) == p2 - 1);
+    assert((p0 = alloc_page()) == p2 + 1);
     free_page(p0);
     assert((p0 = alloc_pages(2)) == p2 + 1);
 
@@ -212,13 +213,13 @@ bestfit_check(void) {
     assert(total == 0);
 }
 
-const struct pmm_manager bestfit_pmm_manager = {
-    .name = "bestfit_pmm_manager",
-    .init = bestfit_init,
-    .init_memmap = bestfit_init_memmap,
-    .alloc_pages = bestfit_alloc_pages,
-    .free_pages = bestfit_free_pages,
-    .nr_free_pages = bestfit_nr_free_pages,
-    .check = bestfit_check,
+const struct pmm_manager worstfit_pmm_manager = {
+    .name = "worstfit_pmm_manager",
+    .init = worstfit_init,
+    .init_memmap = worstfit_init_memmap,
+    .alloc_pages = worstfit_alloc_pages,
+    .free_pages = worstfit_free_pages,
+    .nr_free_pages = worstfit_nr_free_pages,
+    .check = worstfit_check,
 };
 
