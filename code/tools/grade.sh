@@ -315,25 +315,13 @@ brkfun=readline
 
 ## check now!!
 
-quick_run 'Check SWAP'
+quick_run 'Check MM'
 
-pts=5
+pts=10
 quick_check 'check pmm'                                         \
-    'memory management: buddy_pmm_manager'                      \
     'check_alloc_page() succeeded!'                             \
     'check_pgdir() succeeded!'                                  \
-    'check_boot_pgdir() succeeded!'
-
-pts=5
-quick_check 'check page table'                                  \
-    'PDE(0e0) c0000000-f8000000 38000000 urw'                   \
-    '  |-- PTE(38000) c0000000-f8000000 38000000 -rw'           \
-    'PDE(001) fac00000-fb000000 00400000 -rw'                   \
-    '  |-- PTE(000e0) faf00000-fafe0000 000e0000 urw'           \
-    '  |-- PTE(00001) fafeb000-fafec000 00001000 -rw'
-
-pts=5
-quick_check 'check slab'                                        \
+    'check_boot_pgdir() succeeded!'                             \
     'check_slab() succeeded!'
 
 pts=10
@@ -341,14 +329,7 @@ quick_check 'check vmm'                                         \
     'check_vma_struct() succeeded!'                             \
     'page fault at 0x00000100: K/W [no page found].'            \
     'check_pgfault() succeeded!'                                \
-    'check_vmm() succeeded.'
-
-pts=20
-quick_check 'check swap page fault'                             \
-    'page fault at 0x00000000: K/W [no page found].'            \
-    'page fault at 0x00001001: K/W [no page found].'            \
-    'page fault at 0x00001000: K/R [no page found].'            \
-    'page fault at 0x00000000: K/R [no page found].'            \
+    'check_vmm() succeeded.'                                    \
     'check_swap() succeeded.'
 
 pts=5
@@ -356,6 +337,14 @@ quick_check 'check ticks'                                       \
     '++ setup timer interrupts'                                 \
     '100 ticks'                                                 \
     'End of Test.'
+
+pts=25
+quick_check 'check mm_swap'                                     \
+    'check_mm_swap: step1, mm_map ok.'                          \
+    'check_mm_swap: step2, mm_unmap ok.'                        \
+    'check_mm_swap: step3, exit_mmap ok.'                       \
+    'check_mm_swap: step4, dup_mmap ok.'                        \
+    'check_mm_swap() succeeded.'
 
 ## print final-score
 show_final

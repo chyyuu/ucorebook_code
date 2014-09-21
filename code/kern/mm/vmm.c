@@ -208,14 +208,29 @@ insert_vma_struct(struct mm_struct *mm, struct vma_struct *vma) {
     }
 }
 
+// remove_vma_struct - remove vma from mm's rb tree link & list link
+static int
+remove_vma_struct(struct mm_struct *mm, struct vma_struct *vma) {
+    assert(mm == vma->vm_mm);
+    if (mm->mmap_tree != NULL) {
+        rb_delete(mm->mmap_tree, &(vma->rb_link));
+    }
+    list_del(&(vma->list_link));
+    if (vma == mm->mmap_cache) {
+        mm->mmap_cache = NULL;
+    }
+    mm->map_count --;
+    return 0;
+}
+
 // mm_destroy - free mm and mm internal fields
 void
 mm_destroy(struct mm_struct *mm) {
     if (mm->mmap_tree != NULL) {
         rb_tree_destroy(mm->mmap_tree);
     }
-    while (!list_empty(&(mm->mmap_list))) {
-        list_entry_t *le = list_next(&(mm->mmap_list));
+    list_entry_t *list = &(mm->mmap_list), *le;
+    while ((le = list_next(list)) != list) {
         list_del(le);
         vma_destroy(le2vma(le, list_link));
     }
@@ -227,6 +242,189 @@ mm_destroy(struct mm_struct *mm) {
 void
 vmm_init(void) {
     check_vmm();
+}
+
+int
+mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
+        struct vma_struct **vma_store) {
+    uintptr_t start = ROUNDDOWN(addr, PGSIZE), end = ROUNDUP(addr + len, PGSIZE);
+    if (!USER_ACCESS(start, end)) {
+        return -E_INVAL;
+    }
+
+    assert(mm != NULL);
+
+    int ret = -E_INVAL;
+
+    struct vma_struct *vma;
+    if ((vma = find_vma(mm, start)) != NULL && end > vma->vm_start) {
+        goto out;
+    }
+    ret = -E_NO_MEM;
+    if ((vma = vma_create(start, end, vm_flags)) == NULL) {
+        goto out;
+    }
+    insert_vma_struct(mm, vma);
+    if (vma_store != NULL) {
+        *vma_store = vma;
+    }
+    ret = 0;
+
+out:
+    return ret;
+}
+
+static void
+vma_resize(struct vma_struct *vma, uintptr_t start, uintptr_t end) {
+    assert(start % PGSIZE == 0 && end % PGSIZE == 0);
+    assert(vma->vm_start <= start && start < end && end <= vma->vm_end);
+    vma->vm_start = start, vma->vm_end = end;
+}
+
+int
+mm_unmap(struct mm_struct *mm, uintptr_t addr, size_t len) {
+    uintptr_t start = ROUNDDOWN(addr, PGSIZE), end = ROUNDUP(addr + len, PGSIZE);
+    if (!USER_ACCESS(start, end)) {
+        return -E_INVAL;
+    }
+
+    assert(mm != NULL);
+
+    struct vma_struct *vma;
+    if ((vma = find_vma(mm, start)) == NULL || end <= vma->vm_start) {
+        return 0;
+    }
+
+    if (vma->vm_start < start && end < vma->vm_end) {
+        struct vma_struct *nvma;
+        if ((nvma = vma_create(vma->vm_start, start, vma->vm_flags)) == NULL) {
+            return -E_NO_MEM;
+        }
+        vma_resize(vma, end, vma->vm_end);
+        insert_vma_struct(mm, nvma);
+        unmap_range(mm->pgdir, start, end);
+        return 0;
+    }
+
+    list_entry_t free_list, *le;
+    list_init(&free_list);
+    while (vma->vm_start < end) {
+        le = list_next(&(vma->list_link));
+        remove_vma_struct(mm, vma);
+        list_add(&free_list, &(vma->list_link));
+        if (le == &(mm->mmap_list)) {
+            break;
+        }
+        vma = le2vma(le, list_link);
+    }
+
+    le = list_next(&free_list);
+    while (le != &free_list) {
+        vma = le2vma(le, list_link);
+        le = list_next(le);
+        uintptr_t un_start, un_end;
+        if (vma->vm_start < start) {
+            un_start = start, un_end = vma->vm_end;
+            vma_resize(vma, vma->vm_start, un_start);
+            insert_vma_struct(mm, vma);
+        }
+        else {
+            un_start = vma->vm_start, un_end = vma->vm_end;
+            if (end < un_end) {
+                un_end = end;
+                vma_resize(vma, un_end, vma->vm_end);
+                insert_vma_struct(mm, vma);
+            }
+            else {
+                vma_destroy(vma);
+            }
+        }
+        unmap_range(mm->pgdir, un_start, un_end);
+    }
+    return 0;
+}
+
+int
+dup_mmap(struct mm_struct *to, struct mm_struct *from) {
+    assert(to != NULL && from != NULL);
+    list_entry_t *list = &(from->mmap_list), *le = list;
+    while ((le = list_prev(le)) != list) {
+        struct vma_struct *vma, *nvma;
+        vma = le2vma(le, list_link);
+        nvma = vma_create(vma->vm_start, vma->vm_end, vma->vm_flags);
+        if (nvma == NULL) {
+            return -E_NO_MEM;
+        }
+        insert_vma_struct(to, nvma);
+        if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, 0) != 0) {
+            return -E_NO_MEM;
+        }
+    }
+    return 0;
+}
+
+void
+exit_mmap(struct mm_struct *mm) {
+    assert(mm != NULL);
+    pde_t *pgdir = mm->pgdir;
+    list_entry_t *list = &(mm->mmap_list), *le = list;
+    while ((le = list_next(le)) != list) {
+        struct vma_struct *vma = le2vma(le, list_link);
+        unmap_range(pgdir, vma->vm_start, vma->vm_end);
+    }
+    while ((le = list_next(le)) != list) {
+        struct vma_struct *vma = le2vma(le, list_link);
+        exit_range(pgdir, vma->vm_start, vma->vm_end);
+    }
+}
+
+uintptr_t
+get_unmapped_area(struct mm_struct *mm, size_t len) {
+    if (len == 0 || len > USERTOP) {
+        return 0;
+    }
+    uintptr_t start = USERTOP - len;
+    list_entry_t *list = &(mm->mmap_list), *le = list;
+    while ((le = list_prev(le)) != list) {
+        struct vma_struct *vma = le2vma(le, list_link);
+        if (start >= vma->vm_end) {
+            return start;
+        }
+        if (start + len > vma->vm_start) {
+            if (len >= vma->vm_start) {
+                return 0;
+            }
+            start = vma->vm_start - len;
+        }
+    }
+    return (start >= USERBASE) ? start : 0;
+}
+
+bool
+user_mem_check(struct mm_struct *mm, uintptr_t addr, size_t len, bool write) {
+    if (mm != NULL) {
+        if (!USER_ACCESS(addr, addr + len)) {
+            return 0;
+        }
+        struct vma_struct *vma;
+        uintptr_t start = addr, end = addr + len;
+        while (start < end) {
+            if ((vma = find_vma(mm, start)) == NULL || start < vma->vm_start) {
+                return 0;
+            }
+            if (!(vma->vm_flags & ((write) ? VM_WRITE : VM_READ))) {
+                return 0;
+            }
+            if (write && (vma->vm_flags & VM_STACK)) {
+                if (start < vma->vm_start + PGSIZE) {
+                    return 0;
+                }
+            }
+            start = vma->vm_end;
+        }
+        return 1;
+    }
+    return KERN_ACCESS(addr, addr + len);
 }
 
 // check_vmm - check correctness of vmm
@@ -348,6 +546,11 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     struct vma_struct *vma = find_vma(mm, addr);
     if (vma == NULL || vma->vm_start > addr) {
         goto failed;
+    }
+    if (vma->vm_flags & VM_STACK) {
+        if (addr < vma->vm_start + PGSIZE) {
+            goto failed;
+        }
     }
 
     switch (error_code & 3) {
