@@ -82,6 +82,10 @@ monitor(struct trapframe *tf) {
     cprintf("Welcome to the kernel debug monitor!!\n");
     cprintf("Type 'help' for a list of commands.\n");
 
+    if (tf != NULL) {
+        print_trapframe(tf);
+    }
+
     char *buf;
     while (1) {
         if ((buf = readline("K> ")) != NULL) {

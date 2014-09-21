@@ -1,4 +1,4 @@
-PROJ	:= 3.1
+PROJ	:= 4
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -113,12 +113,14 @@ $(call add_files_cc,$(call listf_cc,$(LIBDIR)),libs,)
 
 KINCLUDE	+= kern/debug/ \
 			   kern/driver/ \
-			   kern/trap/
+			   kern/trap/ \
+			   kern/mm/
 
 KSRCDIR		+= kern/init \
 			   kern/libs \
 			   kern/debug \
-			   kern/driver
+			   kern/driver \
+			   kern/trap
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
@@ -220,7 +222,7 @@ GRADE_GDB_IN	:= .gdb.in
 GRADE_QEMU_OUT	:= .qemu.out
 HANDIN			:= proj$(PROJ)-handin.tar.gz
 
-TOUCH_FILES		:= kern/init/init.c
+TOUCH_FILES		:= kern/trap/trap.c
 
 MAKEOPTS		:= --quiet --no-print-directory
 

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <kbdreg.h>
+#include <picirq.h>
+#include <trap.h>
 
 /* stupid I/O delay routine necessitated by historical PC design flaws */
 static void
@@ -101,11 +103,14 @@ serial_init(void) {
     serial_exists = (inb(COM1 + COM_LSR) != 0xFF);
     (void) inb(COM1+COM_IIR);
     (void) inb(COM1+COM_RX);
+
+    if (serial_exists) {
+        pic_enable(IRQ_COM1);
+    }
 }
 
-/* lpt_putc - copy console output to parallel port */
 static void
-lpt_putc(int c) {
+lpt_putc_sub(int c) {
     int i;
     for (i = 0; !(inb(LPTPORT + 1) & 0x80) && i < 12800; i ++) {
         delay();
@@ -113,6 +118,19 @@ lpt_putc(int c) {
     outb(LPTPORT + 0, c);
     outb(LPTPORT + 2, 0x08 | 0x04 | 0x01);
     outb(LPTPORT + 2, 0x08);
+}
+
+/* lpt_putc - copy console output to parallel port */
+static void
+lpt_putc(int c) {
+    if (c != '\b') {
+        lpt_putc_sub(c);
+    }
+    else {
+        lpt_putc_sub('\b');
+        lpt_putc_sub(' ');
+        lpt_putc_sub('\b');
+    }
 }
 
 /* cga_putc - print character to console */
@@ -157,14 +175,26 @@ cga_putc(int c) {
     outb(addr_6845 + 1, crt_pos);
 }
 
-/* serial_putc - print character to serial port */
 static void
-serial_putc(int c) {
+serial_putc_sub(int c) {
     int i;
     for (i = 0; !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i ++) {
         delay();
     }
     outb(COM1 + COM_TX, c);
+}
+
+/* serial_putc - print character to serial port */
+static void
+serial_putc(int c) {
+    if (c != '\b') {
+        serial_putc_sub(c);
+    }
+    else {
+        serial_putc_sub('\b');
+        serial_putc_sub(' ');
+        serial_putc_sub('\b');
+    }
 }
 
 /* *
@@ -204,7 +234,11 @@ serial_proc_data(void) {
     if (!(inb(COM1 + COM_LSR) & COM_LSR_DATA)) {
         return -1;
     }
-    return inb(COM1 + COM_RX);
+    int c = inb(COM1 + COM_RX);
+    if (c == 127) {
+        c = '\b';
+    }
+    return c;
 }
 
 /* serial_intr - try to feed input characters from serial port */
@@ -372,6 +406,7 @@ static void
 kbd_init(void) {
     // drain the kbd buffer
     kbd_intr();
+    pic_enable(IRQ_KBD);
 }
 
 /* cons_init - initializes the console devices */

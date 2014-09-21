@@ -314,32 +314,11 @@ brkfun=readline
 
 quick_run 'Check Output'
 
-pts=10
-quick_check 'check message'                                                                     \
-    '(THU.CST) os is loading ...'
-
 pts=30
-quick_check 'check backtrace'                                                                   \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x........ 0x........ 0x........ 0x........\s*'    \
-    - '\s*kern/debug/kdebug.c:[0-9]*: print_stackframe\+[0-9]*\s*'                              \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x00000000 0x00000000 0x00000000 0x........\s*'    \
-    - '\s*kern/debug/monitor.c:[0-9]*: mon_backtrace\+[0-9]*\s*'                                \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x00000000 0x00007b.. 0xffff0000 0x00007b..\s*'    \
-    - '\s*kern/init/init.c:[0-9]*: grade_backtrace2\+[0-9]*\s*'                                 \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x00000000 0xffff0000 0x........ 0x........\s*'    \
-    - '\s*kern/init/init.c:[0-9]*: grade_backtrace1\+[0-9]*\s*'                                 \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x00000000 0x00100000 0xffff0000 0x........\s*'    \
-    - '\s*kern/init/init.c:[0-9]*: grade_backtrace0\+[0-9]*\s*'                                 \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x........ 0x........ 0x........ 0x........\s*'    \
-    - '\s*kern/init/init.c:[0-9]*: grade_backtrace\+[0-9]*\s*'                                  \
-    - '\s*ebp:0x00007b.. eip:0x00100... args:0x........ 0x........ 0x........ 0x........\s*'    \
-    - '\s*kern/init/init.c:[0-9]*: kern_init\+[0-9]*\s*'                                        \
-    - '\s*<unknow>: -- .*'
-
-pts=10
-quick_check 'check monitor'                                                                     \
-    'Welcome to the kernel debug monitor!!'                                                     \
-    'Type '\''help'\'' for a list of commands.'
+quick_check 'check ticks'                                       \
+    '++ setup timer interrupts'                                 \
+    '100 ticks'                                                 \
+    'End of Test.'
 
 ## print final-score
 show_final
