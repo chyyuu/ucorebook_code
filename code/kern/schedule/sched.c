@@ -4,7 +4,7 @@
 #include <sched.h>
 #include <stdio.h>
 #include <assert.h>
-#include <sched_FCFS.h>
+#include <sched_RR.h>
 
 static list_entry_t timer_list;
 
@@ -45,9 +45,10 @@ void
 sched_init(void) {
     list_init(&timer_list);
 
-    sched_class = &FCFS_sched_class;
+    sched_class = &RR_sched_class;
 
     rq = &__rq;
+    rq->max_time_slice = 20;
     sched_class->init(rq);
 
     cprintf("sched class: %s\n", sched_class->name);

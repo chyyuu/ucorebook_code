@@ -61,6 +61,7 @@ struct proc_struct {
     list_entry_t thread_group;                  // the threads list including this proc which share resource (mem/file/sem...)
     struct run_queue *rq;                       // running queue contains Process
     list_entry_t run_link;                      // the entry linked in run queue
+    int time_slice;                             // time slice for occupying the CPU
 };
 
 #define PF_EXITING                  0x00000001      // getting shutdown

@@ -112,6 +112,7 @@ alloc_proc(void) {
         list_init(&(proc->thread_group));
         proc->rq = NULL;
         list_init(&(proc->run_link));
+        proc->time_slice = 0;
     }
     return proc;
 }
@@ -420,6 +421,10 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     proc->parent = current;
     list_init(&(proc->thread_group));
     assert(current->wait_state == 0);
+
+    assert(current->time_slice >= 0);
+    proc->time_slice = current->time_slice / 2;
+    current->time_slice -= proc->time_slice;
 
     if (setup_kstack(proc) != 0) {
         goto bad_fork_cleanup_proc;
