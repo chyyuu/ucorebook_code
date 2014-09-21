@@ -8,6 +8,8 @@ size_t strnlen(const char *s, size_t len);
 
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, size_t len);
+char *strcat(char *dst, const char *src);
+char *strdup(const char *src);
 
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, size_t n);

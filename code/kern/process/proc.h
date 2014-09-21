@@ -42,6 +42,9 @@ struct context {
 extern list_entry_t proc_list;
 extern list_entry_t proc_mm_list;
 
+struct inode;
+struct fs_struct;
+
 struct proc_struct {
     enum proc_state state;                      // Process state
     int pid;                                    // Process ID
@@ -66,6 +69,7 @@ struct proc_struct {
     int time_slice;                             // time slice for occupying the CPU
     sem_queue_t *sem_queue;                     // the user semaphore queue which process waits
     event_t event_box;                          // the event which process waits   
+    struct fs_struct *fs_struct;                // the file related info(pwd, files_count, files_array, fs_semaphore) of process
 };
 
 #define PF_EXITING                  0x00000001      // getting shutdown
@@ -74,6 +78,7 @@ struct proc_struct {
 #define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)  // wait child process
 #define WT_TIMER                    (0x00000002 | WT_INTERRUPTED)  // wait timer
 #define WT_KSWAPD                    0x00000003                    // wait kswapd to free page
+#define WT_KBD                      (0x00000004 | WT_INTERRUPTED)  // wait the input of keyboard
 #define WT_KSEM                      0x00000100                    // wait kernel semaphore
 #define WT_USEM                     (0x00000101 | WT_INTERRUPTED)  // wait user semaphore
 #define WT_EVENT_SEND               (0x00000110 | WT_INTERRUPTED)  // wait the sending event

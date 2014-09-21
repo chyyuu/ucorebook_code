@@ -23,6 +23,8 @@ void __panic(const char *file, int line, const char *fmt, ...) __attribute__((no
 #define static_assert(x)                                \
     switch (x) { case 0: case (x): ; }
 
+int fprintf(int fd, const char *fmt, ...);
+
 void exit(int error_code) __attribute__((noreturn));
 int fork(void);
 int forks(void);

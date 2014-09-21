@@ -194,8 +194,8 @@ trap_dispatch(struct trapframe *tf) {
             debug_monitor(tf);
         }
         else {
-            cprintf("%s [%03d] %c\n",
-                    (tf->tf_trapno != IRQ_OFFSET + IRQ_KBD) ? "serial" : "kbd", c, c);
+            extern void dev_stdin_write(char c);
+            dev_stdin_write(c);
         }
         break;
     case IRQ_OFFSET + IRQ_IDE1:

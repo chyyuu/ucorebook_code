@@ -63,7 +63,7 @@ typedef uintptr_t sem_t;
  * @type:   the type of the struct this is embedded in
  * @member: the name of the member within the struct
  * */
-#define to_struct(ptr, type, member)                               \
+#define to_struct(ptr, type, member)                                \
     ((type *)((char *)(ptr) - offsetof(type, member)))
 
 #endif /* !__LIBS_TYPES_H__ */

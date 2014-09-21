@@ -34,5 +34,14 @@ int sys_mbox_recv(int id, struct mboxbuf *buf, unsigned int timeout);
 int sys_mbox_free(int id);
 int sys_mbox_info(int id, struct mboxinfo *info);
 
+struct stat;
+
+int sys_open(const char *path, uint32_t open_flags);
+int sys_close(int fd);
+int sys_read(int fd, void *base, size_t len);
+int sys_write(int fd, void *base, size_t len);
+int sys_fstat(int fd, struct stat *stat);
+int sys_dup(int fd1, int fd2);
+
 #endif /* !__USER_LIBS_SYSCALL_H__ */
 

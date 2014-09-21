@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <syscall.h>
 #include <mboxbuf.h>
+#include <stat.h>
 
 #define MAX_ARGS            5
 
@@ -160,5 +161,35 @@ sys_mbox_free(int id) {
 int
 sys_mbox_info(int id, struct mboxinfo *info) {
     return syscall(SYS_mbox_info, id, info);
+}
+
+int
+sys_open(const char *path, uint32_t open_flags) {
+    return syscall(SYS_open, path, open_flags);
+}
+
+int
+sys_close(int fd) {
+    return syscall(SYS_close, fd);
+}
+
+int
+sys_read(int fd, void *base, size_t len) {
+    return syscall(SYS_read, fd, base, len);
+}
+
+int
+sys_write(int fd, void *base, size_t len) {
+    return syscall(SYS_write, fd, base, len);
+}
+
+int
+sys_fstat(int fd, struct stat *stat) {
+    return syscall(SYS_fstat, fd, stat);
+}
+
+int
+sys_dup(int fd1, int fd2) {
+    return syscall(SYS_dup, fd1, fd2);
 }
 

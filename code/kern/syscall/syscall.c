@@ -9,6 +9,8 @@
 #include <sem.h>
 #include <event.h>
 #include <mbox.h>
+#include <stat.h>
+#include <sysfile.h>
 
 static uint32_t
 sys_exit(uint32_t arg[]) {
@@ -208,6 +210,49 @@ sys_mbox_info(uint32_t arg[]) {
     return ipc_mbox_info(id, info);
 }
 
+static uint32_t
+sys_open(uint32_t arg[]) {
+    const char *path = (const char *)arg[0];
+    uint32_t open_flags = (uint32_t)arg[1];
+    return sysfile_open(path, open_flags);
+}
+
+static uint32_t
+sys_close(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    return sysfile_close(fd);
+}
+
+static uint32_t
+sys_read(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    void *base = (void *)arg[1];
+    size_t len = (size_t)arg[2];
+    return sysfile_read(fd, base, len);
+}
+
+static uint32_t
+sys_write(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    void *base = (void *)arg[1];
+    size_t len = (size_t)arg[2];
+    return sysfile_write(fd, base, len);
+}
+
+static uint32_t
+sys_fstat(uint32_t arg[]) {
+    int fd = (int)arg[0];
+    struct stat *stat = (struct stat *)arg[1];
+    return sysfile_fstat(fd, stat);
+}
+
+static uint32_t
+sys_dup(uint32_t arg[]) {
+    int fd1 = (int)arg[0];
+    int fd2 = (int)arg[1];
+    return sysfile_dup(fd1, fd2);
+}
+
 static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -238,6 +283,12 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_mbox_recv]         sys_mbox_recv,
     [SYS_mbox_free]         sys_mbox_free,
     [SYS_mbox_info]         sys_mbox_info,
+    [SYS_open]              sys_open,
+    [SYS_close]             sys_close,
+    [SYS_read]              sys_read,
+    [SYS_write]             sys_write,
+    [SYS_fstat]             sys_fstat,
+    [SYS_dup]               sys_dup,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

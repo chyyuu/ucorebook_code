@@ -324,10 +324,10 @@ qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 brkfun=readline
 
 default_check() {
-    pts=15
+    pts=20
     check_regexps "$@"
 
-    pts=5
+    pts=10
     quick_check 'check output'                                  \
         'check_alloc_page() succeeded!'                         \
         'check_pgdir() succeeded!'                              \
@@ -350,23 +350,29 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'mboxtest' -check default_check                  \
-        'kernel_execve: pid = 3, name = "mboxtest".'            \
-        'mboxtest pass.'                                        \
+run_test -prog 'hello2' -check default_check                    \
+        'kernel_execve: pid = 3, name = "hello2".'              \
+        'Hello world!!.'                                        \
+        'I am process 3.'                                       \
+        'hello2 pass.'                                          \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-pts=40
-timeout=360
+run_test -prog 'fwrite_test' -check default_check               \
+        'kernel_execve: pid = 3, name = "fwrite_test".'         \
+        'Hello world!!.'                                        \
+        'I am process 3.'                                       \
+        'dup fd ok.'                                            \
+        'fork fd ok.'                                           \
+        'fwrite_test pass.'                                     \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
 
-run_test -prog 'mboxmap'                                        \
-        'kernel_execve: pid = 3, name = "mboxmap".'             \
-        'fork children ok.'                                     \
-        'wait children ok.'                                     \
-        'mboxmap pass.'                                         \
-    !   'send data error!!'                                     \
-    ! - '^wrong: .*'                                            \
+run_test -prog 'fread_test2' -check default_check               \
+        'kernel_execve: pid = 3, name = "fread_test2".'         \
+        'fread_test2 pass.'                                     \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'

@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <elf.h>
+#include <fs.h>
 #include <swap.h>
 #include <mbox.h>
 
@@ -118,6 +119,7 @@ alloc_proc(void) {
         proc->time_slice = 0;
         proc->sem_queue = NULL;
         event_box_init(&(proc->event_box));
+        proc->fs_struct = NULL;
     }
     return proc;
 }
@@ -445,6 +447,46 @@ put_sem_queue(struct proc_struct *proc) {
     }
 }
 
+static int
+copy_fs(uint32_t clone_flags, struct proc_struct *proc) {
+    struct fs_struct *fs_struct, *old_fs_struct = current->fs_struct;
+    assert(old_fs_struct != NULL);
+
+    if (clone_flags & CLONE_FS) {
+        fs_struct = old_fs_struct;
+        goto good_fs_struct;
+    }
+
+    int ret = -E_NO_MEM;
+    if ((fs_struct = fs_create()) == NULL) {
+        goto bad_fs_struct;
+    }
+
+    if ((ret = dup_fs(fs_struct, old_fs_struct)) != 0) {
+        goto bad_dup_cleanup_fs;
+    }
+
+good_fs_struct:
+    fs_count_inc(fs_struct);
+    proc->fs_struct = fs_struct;
+    return 0;
+
+bad_dup_cleanup_fs:
+    fs_destroy(fs_struct);
+bad_fs_struct:
+    return ret;
+}
+
+static void
+put_fs(struct proc_struct *proc) {
+    struct fs_struct *fs_struct = proc->fs_struct;
+    if (fs_struct != NULL) {
+        if (fs_count_dec(fs_struct) == 0) {
+            fs_destroy(fs_struct);
+        }
+    }
+}
+
 // may_killed - check if current thread should be killed, should be called before go back to user space
 void
 may_killed(void) {
@@ -487,8 +529,11 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     if (copy_sem(clone_flags, proc) != 0) {
         goto bad_fork_cleanup_kstack;
     }
-    if (copy_mm(clone_flags, proc) != 0) {
+    if (copy_fs(clone_flags, proc) != 0) {
         goto bad_fork_cleanup_sem;
+    }
+    if (copy_mm(clone_flags, proc) != 0) {
+        goto bad_fork_cleanup_fs;
     }
     copy_thread(proc, stack, tf);
 
@@ -510,6 +555,8 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
 fork_out:
     return ret;
 
+bad_fork_cleanup_fs:
+    put_fs(proc);
 bad_fork_cleanup_sem:
     put_sem_queue(proc);
 bad_fork_cleanup_kstack:
@@ -548,6 +595,7 @@ __do_exit(void) {
         }
         current->mm = NULL;
     }
+    put_fs(current);
     put_sem_queue(current);
     current->state = PROC_ZOMBIE;
 
@@ -800,9 +848,14 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
         }
         current->mm = NULL;
     }
+    put_fs(current);
     put_sem_queue(current);
 
     int ret = -E_NO_MEM;
+    if ((current->fs_struct = fs_create()) == NULL) {
+        goto execve_exit;
+    }
+    fs_count_inc(current->fs_struct);
     if ((current->sem_queue = sem_queue_create()) == NULL) {
         goto execve_exit;
     }
@@ -1146,7 +1199,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(mboxtest);
+    KERNEL_EXECVE(hello2);
 #endif
     panic("user_main execve failed.\n");
 }
@@ -1189,6 +1242,7 @@ init_main(void *arg) {
     }
 
     mbox_cleanup();
+    fs_cleanup();
 
     cprintf("all user-mode processes have quit.\n");
     assert(initproc->cptr == kswapd && initproc->yptr == NULL && initproc->optr == NULL);
@@ -1220,6 +1274,11 @@ proc_init(void) {
     idleproc->state = PROC_RUNNABLE;
     idleproc->kstack = (uintptr_t)bootstack;
     idleproc->need_resched = 1;
+    if ((idleproc->fs_struct = fs_create()) == NULL) {
+        panic("create fs_struct (idleproc) failed.\n");
+    }
+    fs_count_inc(idleproc->fs_struct);
+
     set_proc_name(idleproc, "idle");
     nr_process ++;
 

@@ -9,7 +9,7 @@ int total = 1000;
 int *note;
 lock_t *locks;
 
-void *
+static void *
 safe_shmem_malloc(size_t size) {
     void *ret;
     if ((ret = shmem_malloc(size)) == NULL) {
@@ -18,7 +18,7 @@ safe_shmem_malloc(size_t size) {
     return ret;
 }
 
-int
+static int
 read(int index) {
     lock_t *l = locks + index;
     int ret;
@@ -35,7 +35,7 @@ try_again:
     return ret;
 }
 
-int
+static int
 write(int index, int val, bool force) {
     lock_t *l = locks + index;
     int ret;

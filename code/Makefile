@@ -1,4 +1,4 @@
-PROJ	:= 16
+PROJ	:= 17
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -153,6 +153,9 @@ KINCLUDE	+= kern/debug/ \
 			   kern/libs/ \
 			   kern/sync/ \
 			   kern/fs/ \
+			   kern/fs/swap/ \
+			   kern/fs/vfs/ \
+			   kern/fs/devs/ \
 			   kern/process/ \
 			   kern/schedule/ \
 			   kern/syscall/
@@ -165,6 +168,9 @@ KSRCDIR		+= kern/init \
 			   kern/mm \
 			   kern/sync \
 			   kern/fs \
+			   kern/fs/swap \
+			   kern/fs/vfs \
+			   kern/fs/devs \
 			   kern/process \
 			   kern/schedule \
 			   kern/syscall
