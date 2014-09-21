@@ -36,10 +36,8 @@ sys_wait(uint32_t arg[]) {
 static uint32_t
 sys_exec(uint32_t arg[]) {
     const char *name = (const char *)arg[0];
-    size_t len = (size_t)arg[1];
-    unsigned char *binary = (unsigned char *)arg[2];
-    size_t size = (size_t)arg[3];
-    return do_execve(name, len, binary, size);
+    const char *path = (const char *)arg[1];
+    return do_execve(name, path);
 }
 
 static uint32_t

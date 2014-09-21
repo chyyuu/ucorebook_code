@@ -16,6 +16,7 @@
 #include <elf.h>
 #include <fs.h>
 #include <vfs.h>
+#include <sysfile.h>
 #include <swap.h>
 #include <mbox.h>
 
@@ -665,14 +666,20 @@ do_exit_thread(int error_code) {
     return __do_exit();
 }
 
-// load_icode -  called by sys_exec-->do_execve
-// 1. create a new mm for current process
-// 2. create a new PDT, and mm->pgdir= kernel virtual addr of PDT
-// 3. copy TEXT/DATA/BSS parts in binary to memory space of process
-// 4. call mm_map to setup user stack, and put parameters into user stack
-// 5. setup trapframe for user environment    
 static int
-load_icode(unsigned char *binary, size_t size) {
+load_icode_read(int fd, void *buf, size_t len, off_t offset) {
+    int ret;
+    if ((ret = sysfile_seek(fd, offset, LSEEK_SET)) != 0) {
+        return ret;
+    }
+    if ((ret = sysfile_read(fd, buf, len)) != len) {
+        return (ret < 0) ? ret : -1;
+    }
+    return 0;
+}
+
+static int
+load_icode(int fd) {
     if (current->mm != NULL) {
         panic("load_icode: current->mm must be empty.\n");
     }
@@ -692,16 +699,22 @@ load_icode(unsigned char *binary, size_t size) {
 
     struct Page *page;
 
-    struct elfhdr *elf = (struct elfhdr *)binary;
-    struct proghdr *ph = (struct proghdr *)(binary + elf->e_phoff);
+    struct elfhdr __elf, *elf = &__elf;
+    if ((ret = load_icode_read(fd, elf, sizeof(struct elfhdr), 0)) != 0) {
+        goto bad_elf_cleanup_pgdir;
+    }
     if (elf->e_magic != ELF_MAGIC) {
         ret = -E_INVAL_ELF;
         goto bad_elf_cleanup_pgdir;
     }
 
-    uint32_t vm_flags, perm;
-    struct proghdr *ph_end = ph + elf->e_phnum;
-    for (; ph < ph_end; ph ++) {
+    struct proghdr __ph, *ph = &__ph;
+    uint32_t vm_flags, perm, phnum;
+    for (phnum = 0; phnum < elf->e_phnum; phnum ++) {
+        off_t phoff = elf->e_phoff + sizeof(struct proghdr) * phnum;
+        if ((ret = load_icode_read(fd, ph, sizeof(struct proghdr), phoff)) != 0) {
+            goto bad_cleanup_mmap;
+        }
         if (ph->p_type != ELF_PT_LOAD) {
             continue ;
         }
@@ -725,23 +738,24 @@ load_icode(unsigned char *binary, size_t size) {
             mm->brk_start = ph->p_va + ph->p_memsz;
         }
 
-        unsigned char *from = binary + ph->p_offset;
+        off_t offset = ph->p_offset;
         size_t off, size;
         uintptr_t start = ph->p_va, end, la = ROUNDDOWN(start, PGSIZE);
-
-        ret = -E_NO_MEM;
 
         end = ph->p_va + ph->p_filesz;
         while (start < end) {
             if ((page = pgdir_alloc_page(mm->pgdir, la, perm)) == NULL) {
+                ret = -E_NO_MEM;
                 goto bad_cleanup_mmap;
             }
             off = start - la, size = PGSIZE - off, la += PGSIZE;
             if (end < la) {
                 size -= la - end;
             }
-            memcpy(page2kva(page) + off, from, size);
-            start += size, from += size;
+            if ((ret = load_icode_read(fd, page2kva(page) + off, size, offset)) != 0) {
+                goto bad_cleanup_mmap;
+            }
+            start += size, offset += size;
         }
 
         end = ph->p_va + ph->p_memsz;
@@ -762,6 +776,7 @@ load_icode(unsigned char *binary, size_t size) {
 
         while (start < end) {
             if ((page = pgdir_alloc_page(mm->pgdir, la, perm)) == NULL) {
+                ret = -E_NO_MEM;
                 goto bad_cleanup_mmap;
             }
             off = start - la, size = PGSIZE - off, la += PGSIZE;
@@ -772,6 +787,7 @@ load_icode(unsigned char *binary, size_t size) {
             start += size;
         }
     }
+    sysfile_close(fd);
 
     mm->brk_start = mm->brk = ROUNDUP(mm->brk_start, PGSIZE);
 
@@ -813,26 +829,30 @@ bad_mm:
     goto out;
 }
 
-// do_execve - call exit_mmap(mm)&pug_pgdir(mm) to reclaim memory space of current process
-//           - call load_icode to setup new memory space accroding binary prog.
 int
-do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
+do_execve(const char *name, const char *path) {
     struct mm_struct *mm = current->mm;
 
     char local_name[PROC_NAME_LEN + 1];
     memset(local_name, 0, sizeof(local_name));
-    if (len > PROC_NAME_LEN) {
-        len = PROC_NAME_LEN;
+    if (name == NULL) {
+        snprintf(local_name, sizeof(local_name), "<null> %d", current->pid);
     }
-
-    lock_mm(mm);
-    {
-        if (!copy_from_user(mm, local_name, name, len, 0)) {
+    else {
+        lock_mm(mm);
+        if (!copy_string(mm, local_name, name, sizeof(local_name))) {
             unlock_mm(mm);
             return -E_INVAL;
         }
+        unlock_mm(mm);
     }
-    unlock_mm(mm);
+
+    fs_closeall(current->fs_struct);
+
+    int ret, fd;
+    if ((ret = fd = sysfile_open(path, O_RDONLY)) < 0) {
+        goto execve_exit;
+    }
 
     if (mm != NULL) {
         lcr3(boot_cr3);
@@ -849,20 +869,15 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
         }
         current->mm = NULL;
     }
-    put_fs(current);
     put_sem_queue(current);
 
-    int ret = -E_NO_MEM;
-    if ((current->fs_struct = fs_create()) == NULL) {
-        goto execve_exit;
-    }
-    fs_count_inc(current->fs_struct);
+    ret = -E_NO_MEM;
     if ((current->sem_queue = sem_queue_create()) == NULL) {
         goto execve_exit;
     }
     sem_queue_count_inc(current->sem_queue);
 
-    if ((ret = load_icode(binary, size)) != 0) {
+    if ((ret = load_icode(fd)) != 0) {
         goto execve_exit;
     }
     de_thread(current);
@@ -1162,43 +1177,32 @@ out_unlock:
     return ret;
 }
 
-// kernel_execve - do SYS_exec syscall to exec a user program called by user_main kernel_thread
 static int
-kernel_execve(const char *name, unsigned char *binary, size_t size) {
-    int ret, len = strlen(name);
+kernel_execve(const char *name, const char *path) {
+    int ret;
     asm volatile (
         "int %1;"
         : "=a" (ret)
-        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (len), "b" (binary), "D" (size)
+        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (path)
         : "memory");
     return ret;
 }
 
-#define __KERNEL_EXECVE(name, binary, size) ({                          \
-            cprintf("kernel_execve: pid = %d, name = \"%s\".\n",        \
-                    current->pid, name);                                \
-            kernel_execve(name, binary, (size_t)(size));                \
+#define __KERNEL_EXECVE(name, path) ({                              \
+            cprintf("kernel_execve: pid = %d, name = \"%s\".\n",    \
+                    current->pid, name);                            \
+            kernel_execve(name, path);                              \
         })
 
-#define KERNEL_EXECVE(x) ({                                             \
-            extern unsigned char _binary_obj___user_##x##_out_start[],  \
-                _binary_obj___user_##x##_out_size[];                    \
-            __KERNEL_EXECVE(#x, _binary_obj___user_##x##_out_start,     \
-                            _binary_obj___user_##x##_out_size);         \
-        })
+#define KERNEL_EXECVE(x)                        __KERNEL_EXECVE(#x, "bin/"#x)
 
-#define __KERNEL_EXECVE2(x, xstart, xsize) ({                           \
-            extern unsigned char xstart[], xsize[];                     \
-            __KERNEL_EXECVE(#x, xstart, (size_t)xsize);                 \
-        })
-
-#define KERNEL_EXECVE2(x, xstart, xsize)        __KERNEL_EXECVE2(x, xstart, xsize)
+#define KERNEL_EXECVE2(x)                       KERNEL_EXECVE(x)
 
 // user_main - kernel thread used to exec a user program
 static int
 user_main(void *arg) {
 #ifdef TEST
-    KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
+    KERNEL_EXECVE2(TEST);
 #else
     KERNEL_EXECVE(hello2);
 #endif

@@ -33,6 +33,7 @@ void unlock_fs(struct fs_struct *fs_struct);
 
 struct fs_struct *fs_create(void);
 void fs_destroy(struct fs_struct *fs_struct);
+void fs_closeall(struct fs_struct *fs_struct);
 int dup_fs(struct fs_struct *to, struct fs_struct *from);
 
 static inline int

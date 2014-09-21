@@ -6,6 +6,7 @@
 int sys_exit(int error_code);
 int sys_fork(void);
 int sys_wait(int pid, int *store);
+int sys_exec(const char *name, const char *path);
 int sys_yield(void);
 int sys_sleep(unsigned int time);
 int sys_kill(int pid);

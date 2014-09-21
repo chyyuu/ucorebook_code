@@ -408,11 +408,11 @@ run_test -prog 'sfs_dirtest1'                                           \
         '0: current: disk0:/'                                           \
         '1: current: disk0:/'                                           \
         '2: current: disk0:/home/'                                      \
-        '2: d   2      0        512  .'                                 \
-        '2: d   6      4       1536  ..'                                \
+      - '2: d   2   ....        512  .'                                 \
+      - '2: d   6   ....       1536  ..'                                \
         '3: current: disk0:/testman/'                                   \
-        '3: d   3      8       2560  .'                                 \
-        '3: d   6      4       1536  ..'                                \
+      - '3: d   3   ....       2560  .'                                 \
+      - '3: d   6   ....       1536  ..'                                \
         '3: -   1     21      83153  awk'                               \
         '3: d   2      5       1792  coreutils'                         \
         '3: -   1      8      31690  cpp'                               \
@@ -422,20 +422,20 @@ run_test -prog 'sfs_dirtest1'                                           \
         '3: -   1      3      10371  sed'                               \
         '3: -   1      5      17354  zsh'                               \
         '4: current: disk0:/testman/coreutils/'                         \
-        '4: d   2      5       1792  .'                                 \
-        '4: d   3      8       2560  ..'                                \
+      - '4: d   2   ....       1792  .'                                 \
+      - '4: d   3   ....       2560  ..'                                \
         '4: -   1      1       2115  cat'                               \
         '4: -   1      2       5338  cp'                                \
         '4: -   1      2       7487  ls'                                \
         '4: -   1      1       3024  mv'                                \
         '4: -   1      1       3676  rm'                                \
         '5: current: disk0:/testman/'                                   \
-        '5: d   3      8       2560  .'                                 \
-        '5: d   6      4       1536  ..'                                \
+      - '5: d   3   ....       2560  .'                                 \
+      - '5: d   6   ....       1536  ..'                                \
         '6: current: disk0:/'                                           \
-        '6: d   6      4       1536  .'                                 \
-        '6: d   6      4       1536  ..'                                \
-        '6: d   2      0        512  bin'                               \
+      - '6: d   6   ....       1536  .'                                 \
+      - '6: d   6   ....       1536  ..'                                \
+      - '6: d   2   ....     ......  bin'                               \
         '6: d   2      0        512  home'                              \
         '6: d   2      1        768  test'                              \
         '6: d   3      8       2560  testman'                           \
@@ -464,27 +464,27 @@ run_test -prog 'sfs_filetest3'                                          \
 run_test -prog 'sfs_dirtest2'                                           \
         'kernel_execve: pid = 3, name = "sfs_dirtest2".'                \
         '0: current: disk0:/test/'                                      \
-      - '0: d   2      .        768  .'                                 \
-      - '0: d   6      .       1536  ..'                                \
+      - '0: d   2   ....        768  .'                                 \
+      - '0: d   6   ....       1536  ..'                                \
         '0: -   1      0          0  testfile'                          \
         '1: current: disk0:/test/'                                      \
-      - '1: d   3      .       1280  .'                                 \
-      - '1: d   3      .        768  dir0'                              \
+      - '1: d   3   ....       1280  .'                                 \
+      - '1: d   3   ....        768  dir0'                              \
         '1: -   1      0          0  file1'                             \
         '2: current: disk0:/test/'                                      \
-      - '2: d   3      .       1280  .'                                 \
-      - '2: d   3      .        768  dir0'                              \
+      - '2: d   3   ....       1280  .'                                 \
+      - '2: d   3   ....        768  dir0'                              \
         '2: -   2      0          0  file1'                             \
         '3: current: disk0:/test/dir0/dir1/'                            \
-      - '3: d   2      .        768  .'                                 \
-      - '3: d   3      .        768  ..'                                \
+      - '3: d   2   ....        768  .'                                 \
+      - '3: d   3   ....        768  ..'                                \
         '3: -   2      0          0  file2'                             \
         '4: current: disk0:/test/dir0/'                                 \
-      - '4: d   2      .        512  .'                                 \
-      - '4: d   3      .       1280  ..'                                \
+      - '4: d   2   ....        512  .'                                 \
+      - '4: d   3   ....       1280  ..'                                \
         '5: current: disk0:/test/'                                      \
-      - '5: d   2      .        768  .'                                 \
-      - '5: d   6      .       1536  ..'                                \
+      - '5: d   2   ....        768  .'                                 \
+      - '5: d   6   ....       1536  ..'                                \
         'sfs_dirtest2 pass.'                                            \
         'all user-mode processes have quit.'                            \
         'init check memory pass.'                                       \
@@ -493,30 +493,56 @@ run_test -prog 'sfs_dirtest2'                                           \
 run_test -prog 'sfs_dirtest3'                                           \
         'kernel_execve: pid = 3, name = "sfs_dirtest3".'                \
         '0: current: disk0:/test/'                                      \
-      - '0: d   2      .        768  .'                                 \
-      - '0: d   6      .       1536  ..'                                \
+      - '0: d   2   ....        768  .'                                 \
+      - '0: d   6   ....       1536  ..'                                \
         '0: -   1      0          0  testfile'                          \
         '1: current: disk0:/test/dir0/dir1/'                            \
-      - '1: d   2      .        512  .'                                 \
-      - '1: d   3      .       1024  ..'                                \
+      - '1: d   2   ....        512  .'                                 \
+      - '1: d   3   ....       1024  ..'                                \
         '2: current: disk0:/test/dir0/dir1/'                            \
-      - '2: d   2      .        768  .'                                 \
-      - '2: d   3      .        768  ..'                                \
+      - '2: d   2   ....        768  .'                                 \
+      - '2: d   3   ....        768  ..'                                \
         '2: -   1      1         28  file2'                             \
         '3: current: disk0:/test/'                                      \
-      - '3: d   4      .       1280  .'                                 \
-      - '3: d   6      .       1536  ..'                                \
-      - '3: d   2      .        768  dir2'                              \
-      - '3: d   2      .        512  dir0'                              \
+      - '3: d   4   ....       1280  .'                                 \
+      - '3: d   6   ....       1536  ..'                                \
+      - '3: d   2   ....        768  dir2'                              \
+      - '3: d   2   ....        512  dir0'                              \
         '4: current: disk0:/test/'                                      \
-      - '4: d   2      .        768  .'                                 \
-      - '4: d   6      .       1536  ..'                                \
+      - '4: d   2   ....        768  .'                                 \
+      - '4: d   6   ....       1536  ..'                                \
         'sfs_dirtest3 pass.'                                            \
         'all user-mode processes have quit.'                            \
         'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
 show_part C
+
+run_test -prog 'sfs_exectest1'                                          \
+        'kernel_execve: pid = 3, name = "sfs_exectest1".'               \
+        '00: Hello world!!.'                                            \
+        '01: Hello world!!.'                                            \
+        '03: Hello world!!.'                                            \
+        '05: Hello world!!.'                                            \
+        '07: Hello world!!.'                                            \
+        '09: Hello world!!.'                                            \
+        '11: Hello world!!.'                                            \
+        '13: Hello world!!.'                                            \
+        '15: Hello world!!.'                                            \
+        '17: Hello world!!.'                                            \
+        '19: Hello world!!.'                                            \
+        '21: Hello world!!.'                                            \
+        '23: Hello world!!.'                                            \
+        '25: Hello world!!.'                                            \
+        '27: Hello world!!.'                                            \
+        '29: Hello world!!.'                                            \
+        '31: Hello world!!.'                                            \
+        'sfs_exectest1 pass.'                                           \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
+    ! - 'user panic at .*'
+
+show_part D
 
 ## print final-score
 show_final

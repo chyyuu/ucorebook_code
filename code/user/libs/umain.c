@@ -7,11 +7,12 @@ int main(void);
 
 static int
 initfd(int fd2, const char *path, uint32_t open_flags) {
-    int fd1, ret;
-    if ((fd1 = open(path, open_flags)) < 0) {
-        return fd1;
-    }
-    if (fd1 != fd2) {
+    struct stat __stat, *stat = &__stat;
+    int ret, fd1;
+    if ((ret = fstat(fd2, stat)) != 0) {
+        if ((fd1 = open(path, open_flags)) < 0 || fd1 == fd2) {
+            return fd1;
+        }
         close(fd2);
         ret = dup2(fd1, fd2);
         close(fd1);

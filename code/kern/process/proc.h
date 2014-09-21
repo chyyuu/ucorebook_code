@@ -107,7 +107,7 @@ void may_killed(void);
 int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf);
 int do_exit(int error_code);
 int do_exit_thread(int error_code);
-int do_execve(const char *name, size_t len, unsigned char *binary, size_t size);
+int do_execve(const char *name, const char *path);
 int do_yield(void);
 int do_wait(int pid, int *code_store);
 int do_kill(int pid, int error_code);

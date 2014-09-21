@@ -175,6 +175,11 @@ mbox_info(int id, struct mboxinfo *info) {
     return sys_mbox_info(id, info);
 }
 
+int
+__exec(const char *name, const char *path) {
+    return sys_exec(name, path);
+}
+
 int __clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 int

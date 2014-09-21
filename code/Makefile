@@ -1,4 +1,4 @@
-PROJ	:= 18.1
+PROJ	:= 18.2
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -190,9 +190,9 @@ kernel	= $(call totarget,kernel)
 
 $(kernel): tools/kernel.ld
 
-$(kernel): $(KOBJS) $(USER_BINS)
+$(kernel): $(KOBJS)
 	@echo + ld $@
-	$(V)$(LD) $(LDFLAGS) -T tools/kernel.ld -o $@ $(KOBJS) -b binary $(USER_BINS)
+	$(V)$(LD) $(LDFLAGS) -T tools/kernel.ld -o $@ $(KOBJS)
 	@$(OBJDUMP) -S $@ > $(call asmfile,kernel)
 	@$(OBJDUMP) -t $@ | $(SED) '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(call symfile,kernel)
 
@@ -253,9 +253,19 @@ $(call create_target,swap.img)
 
 # create fs.img
 FSIMG		:= $(call totarget,fs.img)
+FSBINS		:=
 SFSROOT		:= disk0
 
-$(FSIMG): $(SFSROOT) | $(call totarget,mksfs)
+define fscopy
+__fs_bin__ := $(2)$(SLASH)$(patsubst $(USER_PREFIX)%,%,$(basename $(notdir $(1))))
+FSBINS += $$(__fs_bin__)
+$$(__fs_bin__): $(1) | $$$$(dir $@)
+	@$(COPY) $$< $$@
+endef
+
+$(foreach p,$(USER_BINS),$(eval $(call fscopy,$(p),$(SFSROOT)$(SLASH)bin)))
+
+$(FSIMG): $(SFSROOT) $(FSBINS) | $(call totarget,mksfs)
 	$(V)dd if=/dev/zero of=$@ bs=1M count=128
 	@$(call totarget,mksfs) $@ $(SFSROOT)
 
@@ -312,7 +322,7 @@ run-%: build-%
 	$(V)$(QEMU) -parallel stdio $(QEMUOPTS) -serial null
 
 build-%: touch
-	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=$* -DTESTSTART=$(RUN_PREFIX)$*_out_start -DTESTSIZE=$(RUN_PREFIX)$*_out_size"
+	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=$*"
 
 .PHONY: grade touch buildfs
 
@@ -336,7 +346,7 @@ print-%:
 
 .PHONY: clean dist-clean handin packall
 clean:
-	$(V)$(RM) $(GRADE_GDB_IN) $(GRADE_QEMU_OUT)
+	$(V)$(RM) $(GRADE_GDB_IN) $(GRADE_QEMU_OUT) $(FSBINS)
 	-$(RM) -r $(OBJDIR) $(BINDIR)
 
 dist-clean: clean

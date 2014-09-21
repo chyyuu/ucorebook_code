@@ -63,6 +63,18 @@ fs_destroy(struct fs_struct *fs_struct) {
     kfree(fs_struct);
 }
 
+void
+fs_closeall(struct fs_struct *fs_struct) {
+    assert(fs_struct != NULL && fs_count(fs_struct) > 0);
+    int i;
+    struct file *file = fs_struct->filemap;
+    for (i = 2, file += 2; i < FS_STRUCT_NENTRY; i ++, file ++) {
+        if (file->status == FD_OPENED) {
+            filemap_close(file);
+        }
+    }
+}
+
 int
 dup_fs(struct fs_struct *to, struct fs_struct *from) {
     assert(to != NULL && from != NULL);

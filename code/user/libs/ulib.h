@@ -62,5 +62,10 @@ int mbox_recv_timeout(int id, struct mboxbuf *buf, unsigned int timeout);
 int mbox_free(int id);
 int mbox_info(int id, struct mboxinfo *info);
 
+int __exec(const char *name, const char *path);
+
+#define exec(path)                              __exec(NULL, path)
+#define nexec(name, path)                       __exec(name, path)
+
 #endif /* !__USER_LIBS_ULIB_H__ */
 
