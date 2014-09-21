@@ -46,6 +46,7 @@ static struct segdesc gdt[] = {
     [SEG_UTEXT] = SEG(STA_X | STA_R, 0x0, 0xFFFFFFFF, DPL_USER),
     [SEG_UDATA] = SEG(STA_W, 0x0, 0xFFFFFFFF, DPL_USER),
     [SEG_TSS]   = SEG_NULL,
+    [SEG_CG]    = SEG_NULL,
 };
 
 static struct pseudodesc gdt_pd = {
@@ -71,17 +72,40 @@ lgdt(struct pseudodesc *pd) {
 /* temporary kernel stack */
 uint8_t stack0[1024];
 
+static void
+switch_to_kernel(void) {
+    //    H                     L
+    // ----------------------------
+    // | ss | esp | cs | eip | ebp
+    // ----------------------------
+    //                          ^
+    //                          +----- ebp
+    asm volatile (
+            "movl %%eax, -0x4(%%ebp);"
+            "mov %0, %%ax;"
+            "mov %%ax, %%ds;"
+            "mov %%ax, %%es;"
+            "movl 0xC(%%ebp), %%esp;"
+            "movl 0x4(%%ebp), %%eax;"
+            "pushl %%eax;"
+            "movl -0x4(%%ebp), %%eax;"
+            "ret;"
+            :: "i"(KERNEL_DS));
+}
+
 /* gdt_init - initialize the default GDT and TSS */
 static void
 gdt_init(void) {
     // Setup a TSS so that we can get the right stack when we trap from
     // user to the kernel. But not safe here, it's only a temporary value,
     // it will be set to KSTACKTOP in lab2.
-    ts.ts_esp0 = (uint32_t)stack0 + sizeof(stack0);
+    ts.ts_esp0 = (uintptr_t)stack0 + sizeof(stack0);
     ts.ts_ss0 = KERNEL_DS;
 
     // initialize the TSS filed of the gdt
-    gdt[SEG_TSS] = SEGTSS(STS_T32A, (uint32_t)&ts, sizeof(ts), DPL_KERNEL);
+    gdt[SEG_TSS] = SEGTSS(STS_T32A, (uintptr_t)&ts, sizeof(ts), DPL_KERNEL);
+
+    SETCALLGATE(*(struct gatedesc *)&gdt[SEG_CG], GD_KTEXT, switch_to_kernel, DPL_USER);
 
     // reload all segment registers
     lgdt(&gdt_pd);
