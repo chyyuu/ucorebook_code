@@ -8,6 +8,7 @@
 #include <clock.h>
 #include <intr.h>
 #include <pmm.h>
+#include <vmm.h>
 
 int kern_init(void) __attribute__((noreturn));
 
@@ -28,6 +29,8 @@ kern_init(void) {
 
     pic_init();                 // init interrupt controller
     idt_init();                 // init interrupt descriptor table
+
+    vmm_init();                 // init virtual memory management
 
     clock_init();               // init clock interrupt
     intr_enable();              // enable irq interrupt

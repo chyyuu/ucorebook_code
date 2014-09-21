@@ -312,16 +312,16 @@ brkfun=readline
 
 ## check now!!
 
-quick_run 'Check PMM'
+quick_run 'Check VMM'
 
-pts=10
+pts=5
 quick_check 'check pmm'                                         \
     'memory management: buddy_pmm_manager'                      \
     'check_alloc_page() succeeded!'                             \
     'check_pgdir() succeeded!'                                  \
     'check_boot_pgdir() succeeded!'
 
-pts=10
+pts=5
 quick_check 'check page table'                                  \
     'PDE(0e0) c0000000-f8000000 38000000 urw'                   \
     '  |-- PTE(38000) c0000000-f8000000 38000000 -rw'           \
@@ -329,11 +329,18 @@ quick_check 'check page table'                                  \
     '  |-- PTE(000e0) faf00000-fafe0000 000e0000 urw'           \
     '  |-- PTE(00001) fafeb000-fafec000 00001000 -rw'
 
-pts=20
+pts=10
 quick_check 'check slab'                                        \
     'check_slab() succeeded!'
 
-pts=10
+pts=25
+quick_check 'check vmm'                                         \
+    'check_vma_struct() succeeded!'                             \
+    'page fault at 0x00000100: K/W [no page found].'            \
+    'check_pgfault() succeeded!'                                \
+    'check_vmm() succeeded.'
+
+pts=5
 quick_check 'check ticks'                                       \
     '++ setup timer interrupts'                                 \
     '100 ticks'                                                 \

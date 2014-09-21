@@ -438,6 +438,21 @@ tlb_invalidate(pde_t *pgdir, uintptr_t la) {
     }
 }
 
+// pgdir_alloc_page - call alloc_page & page_insert functions to 
+//                  - allocate a page size memory & setup an addr map
+//                  - pa<->la with linear address la and the PDT pgdir
+struct Page *
+pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm) {
+    struct Page *page = alloc_page();
+    if (page != NULL) {
+        if (page_insert(pgdir, page, la, perm) != 0) {
+            free_page(page);
+            return NULL;
+        }
+    }
+    return page;
+}
+
 static void
 check_alloc_page(void) {
     pmm_manager->check();
