@@ -1240,33 +1240,45 @@ out_unlock:
 }
 
 static int
-kernel_execve(const char *name, const char *path, ...) {
-    int ret;
+kernel_execve(const char *name, const char **argv) {
+    int argc = 0, ret;
+    while (argv[argc] != NULL) {
+        argc ++;
+    }
     asm volatile (
         "int %1;"
         : "=a" (ret)
-        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (1), "b" (&path)
+        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (argc), "b" (argv)
         : "memory");
     return ret;
 }
 
-#define __KERNEL_EXECVE(name, path) ({                              \
+#define __KERNEL_EXECVE(name, path, ...) ({                         \
+            const char *argv[] = {path, ##__VA_ARGS__, NULL};       \
             cprintf("kernel_execve: pid = %d, name = \"%s\".\n",    \
                     current->pid, name);                            \
-            kernel_execve(name, path);                              \
+            kernel_execve(name, argv);                              \
         })
 
-#define KERNEL_EXECVE(x)                        __KERNEL_EXECVE(#x, "bin/"#x)
+#define KERNEL_EXECVE(x, ...)                   __KERNEL_EXECVE(#x, "bin/"#x, ##__VA_ARGS__)
 
-#define KERNEL_EXECVE2(x)                       KERNEL_EXECVE(x)
+#define KERNEL_EXECVE2(x, ...)                  KERNEL_EXECVE(x, ##__VA_ARGS__)
+
+#define __KERNEL_EXECVE3(x, s, ...)             KERNEL_EXECVE(x, #s, ##__VA_ARGS__)
+
+#define KERNEL_EXECVE3(x, s, ...)               __KERNEL_EXECVE3(x, s, ##__VA_ARGS__)
 
 // user_main - kernel thread used to exec a user program
 static int
 user_main(void *arg) {
 #ifdef TEST
-    KERNEL_EXECVE2(TEST);
+#ifdef TESTSCRIPT
+    KERNEL_EXECVE3(TEST, TESTSCRIPT);
 #else
-    KERNEL_EXECVE(sfs_exectest2);
+    KERNEL_EXECVE2(TEST);
+#endif
+#else
+    KERNEL_EXECVE(sh);
 #endif
     panic("user_main execve failed.\n");
 }

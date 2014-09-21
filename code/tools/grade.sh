@@ -35,7 +35,7 @@ sed='sed'
 sym_table='obj/kernel.sym'
 
 ## gdb & gdbopts
-gdb="$(make_print GDB)"
+gdb="$(make_print GCCPREFIX)gdb"
 gdbport='1234'
 
 gdb_in="$(make_print GRADE_GDB_IN)"
@@ -355,194 +355,54 @@ default_check() {
 
 ## check now!!
 
+pts=30
 timeout=300
 
-run_test -prog 'sfs_filetest1' -check default_check                     \
-        'kernel_execve: pid = 3, name = "sfs_filetest1".'               \
-        'init_data ok.'                                                 \
-        'random_test ok.'                                               \
-        'sfs_filetest1 pass.'                                           \
+run_test -prog 'sh' -DTESTSCRIPT='/script/test1.sh'                     \
+        'kernel_execve: pid = 3, name = "sh".'                          \
+        'ls'                                                            \
+        'cd test'                                                       \
+        'pwd'                                                           \
+        'ls /testman > xx'                                              \
+        'cat xx'                                                        \
+        'unlink xx'                                                     \
+        'echo test1.sh end.'                                            \
         'all user-mode processes have quit.'                            \
         'init check memory pass.'                                       \
+    ! - 'sh error.*'                                                    \
     ! - 'user panic at .*'
 
-run_test -prog 'sfs_filetest2' -check default_check                     \
-        'kernel_execve: pid = 3, name = "sfs_filetest2".'               \
-        'sfs_filetest2 pass.'                                           \
+run_test -prog 'sh' -DTESTSCRIPT='/script/test2.sh'                     \
+        'kernel_execve: pid = 3, name = "sh".'                          \
+        'cd test'                                                       \
+        'mkdir pp'                                                      \
+        'cd pp'                                                         \
+        'ls /bin | cat > qq'                                            \
+        'link qq pp'                                                    \
+        'ls'                                                            \
+        'cd ..'                                                         \
+        'link pp/pp orz'                                                \
+        'unlink pp/pp pp/qq'                                            \
+        'rename pp qq'                                                  \
+        'unlink qq'                                                     \
+        'unlink orz'                                                    \
+        'echo test2.sh end.'                                            \
         'all user-mode processes have quit.'                            \
         'init check memory pass.'                                       \
+    ! - 'sh error.*'                                                    \
     ! - 'user panic at .*'
 
-run_test -prog 'sfs_dirtest1' -check default_check                      \
-        'kernel_execve: pid = 3, name = "sfs_dirtest1".'                \
-        '0: current: disk0:/'                                           \
-        '1: current: disk0:/'                                           \
-        '2: current: disk0:/home/'                                      \
-      - '2: d   2   ....        512  .'                                 \
-      - '2: d   6   ....       1536  ..'                                \
-        '3: current: disk0:/testman/'                                   \
-      - '3: d   3   ....       2560  .'                                 \
-      - '3: d   6   ....       1536  ..'                                \
-        '3: -   1     21      83153  awk'                               \
-        '3: d   2      5       1792  coreutils'                         \
-        '3: -   1      8      31690  cpp'                               \
-        '3: -   1    100     408495  gcc'                               \
-        '3: -   1      3       8341  gdb'                               \
-        '3: -   1     12      46254  ld'                                \
-        '3: -   1      3      10371  sed'                               \
-        '3: -   1      5      17354  zsh'                               \
-        '4: current: disk0:/testman/coreutils/'                         \
-      - '4: d   2   ....       1792  .'                                 \
-      - '4: d   3   ....       2560  ..'                                \
-        '4: -   1      1       2115  cat'                               \
-        '4: -   1      2       5338  cp'                                \
-        '4: -   1      2       7487  ls'                                \
-        '4: -   1      1       3024  mv'                                \
-        '4: -   1      1       3676  rm'                                \
-        '5: current: disk0:/testman/'                                   \
-      - '5: d   3   ....       2560  .'                                 \
-      - '5: d   6   ....       1536  ..'                                \
-        '6: current: disk0:/'                                           \
-      - '6: d   6   ....       1536  .'                                 \
-      - '6: d   6   ....       1536  ..'                                \
-      - '6: d   2   ....     ......  bin'                               \
-        '6: d   2      0        512  home'                              \
-        '6: d   2      1        768  test'                              \
-        '6: d   3      8       2560  testman'                           \
-        'sfs_dirtest1 pass.'                                            \
+run_test -prog 'sh' -DTESTSCRIPT='/script/test3.sh'                     \
+        'kernel_execve: pid = 3, name = "sh".'                          \
+        'cat script/test2.sh > test/tmp.sh'                             \
+        'ls test'                                                       \
+        'sh < test/tmp.sh'                                              \
+        'unlink test/tmp.sh'                                            \
+        'echo test3.sh end.'                                            \
         'all user-mode processes have quit.'                            \
         'init check memory pass.'                                       \
+    ! - 'sh error.*'                                                    \
     ! - 'user panic at .*'
-
-show_part A
-
-pts=30
-
-run_test -prog 'sfs_filetest3'                                          \
-        'kernel_execve: pid = 3, name = "sfs_filetest3".'               \
-        '0: -   1      0          0  testfile'                          \
-        '1: -   2      1         14  testfile'                          \
-        '1: -   2      1         14  orz'                               \
-        'link test ok.'                                                 \
-        '2: -   1      1         14  testfile'                          \
-        'unlink test ok.'                                               \
-        '3: -   1      0          0  testfile'                          \
-    ! - '2: .......................  orz'                               \
-        'sfs_filetest3 pass.'                                           \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-run_test -prog 'sfs_dirtest2'                                           \
-        'kernel_execve: pid = 3, name = "sfs_dirtest2".'                \
-        '0: current: disk0:/test/'                                      \
-      - '0: d   2   ....        768  .'                                 \
-      - '0: d   6   ....       1536  ..'                                \
-        '0: -   1      0          0  testfile'                          \
-        '1: current: disk0:/test/'                                      \
-      - '1: d   3   ....       1280  .'                                 \
-      - '1: d   3   ....        768  dir0'                              \
-        '1: -   1      0          0  file1'                             \
-        '2: current: disk0:/test/'                                      \
-      - '2: d   3   ....       1280  .'                                 \
-      - '2: d   3   ....        768  dir0'                              \
-        '2: -   2      0          0  file1'                             \
-        '3: current: disk0:/test/dir0/dir1/'                            \
-      - '3: d   2   ....        768  .'                                 \
-      - '3: d   3   ....        768  ..'                                \
-        '3: -   2      0          0  file2'                             \
-        '4: current: disk0:/test/dir0/'                                 \
-      - '4: d   2   ....        512  .'                                 \
-      - '4: d   3   ....       1280  ..'                                \
-        '5: current: disk0:/test/'                                      \
-      - '5: d   2   ....        768  .'                                 \
-      - '5: d   6   ....       1536  ..'                                \
-        'sfs_dirtest2 pass.'                                            \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-run_test -prog 'sfs_dirtest3'                                           \
-        'kernel_execve: pid = 3, name = "sfs_dirtest3".'                \
-        '0: current: disk0:/test/'                                      \
-      - '0: d   2   ....        768  .'                                 \
-      - '0: d   6   ....       1536  ..'                                \
-        '0: -   1      0          0  testfile'                          \
-        '1: current: disk0:/test/dir0/dir1/'                            \
-      - '1: d   2   ....        512  .'                                 \
-      - '1: d   3   ....       1024  ..'                                \
-        '2: current: disk0:/test/dir0/dir1/'                            \
-      - '2: d   2   ....        768  .'                                 \
-      - '2: d   3   ....        768  ..'                                \
-        '2: -   1      1         28  file2'                             \
-        '3: current: disk0:/test/'                                      \
-      - '3: d   4   ....       1280  .'                                 \
-      - '3: d   6   ....       1536  ..'                                \
-      - '3: d   2   ....        768  dir2'                              \
-      - '3: d   2   ....        512  dir0'                              \
-        '4: current: disk0:/test/'                                      \
-      - '4: d   2   ....        768  .'                                 \
-      - '4: d   6   ....       1536  ..'                                \
-        'sfs_dirtest3 pass.'                                            \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-show_part B
-
-run_test -prog 'sfs_exectest1'                                          \
-        'kernel_execve: pid = 3, name = "sfs_exectest1".'               \
-        '00: Hello world!!.'                                            \
-        '01: Hello world!!.'                                            \
-        '03: Hello world!!.'                                            \
-        '05: Hello world!!.'                                            \
-        '07: Hello world!!.'                                            \
-        '09: Hello world!!.'                                            \
-        '11: Hello world!!.'                                            \
-        '13: Hello world!!.'                                            \
-        '15: Hello world!!.'                                            \
-        '17: Hello world!!.'                                            \
-        '19: Hello world!!.'                                            \
-        '21: Hello world!!.'                                            \
-        '23: Hello world!!.'                                            \
-        '25: Hello world!!.'                                            \
-        '27: Hello world!!.'                                            \
-        '29: Hello world!!.'                                            \
-        '31: Hello world!!.'                                            \
-        'sfs_exectest1 pass.'                                           \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-run_test -prog 'sfs_exectest2'                                          \
-        'kernel_execve: pid = 3, name = "sfs_exectest2".'               \
-        '1-0: bin/sfs_exectest2'                                        \
-        '2-0: bin/sfs_exectest2'                                        \
-        '2-1: arg0'                                                     \
-        '3-0: bin/sfs_exectest2'                                        \
-        '3-1: arg0'                                                     \
-        '3-2: arg1'                                                     \
-        '4-0: bin/sfs_exectest2'                                        \
-        '4-1: arg0'                                                     \
-        '4-2: arg1'                                                     \
-        '4-3: arg2'                                                     \
-        '5-0: bin/sfs_exectest2'                                        \
-        '5-1: arg0'                                                     \
-        '5-2: arg1'                                                     \
-        '5-3: arg2'                                                     \
-        '5-4: arg3'                                                     \
-        '6-0: bin/sfs_exectest2'                                        \
-        '6-1: arg0'                                                     \
-        '6-2: arg1'                                                     \
-        '6-3: arg2'                                                     \
-        '6-4: arg3'                                                     \
-        '6-5: arg4'                                                     \
-        'sfs_exectest2 pass.'                                           \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-show_part C
 
 ## print final-score
 show_final

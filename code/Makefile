@@ -1,4 +1,4 @@
-PROJ	:= 18.3
+PROJ	:= 19
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -44,8 +44,6 @@ endif
 
 HOSTCC		:= gcc
 HOSTCFLAGS	:= -g -Wall -O2 -D_FILE_OFFSET_BITS=64
-
-GDB		:= $(GCCPREFIX)gdb
 
 CC		:= $(GCCPREFIX)gcc
 CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
@@ -282,6 +280,8 @@ IGNORE_ALLDEPS	= clean \
 				  print-.+ \
 				  run-.+ \
 				  build-.+ \
+				  sh-.+ \
+				  script-.+ \
 				  handin
 
 ifeq ($(call match,$(MAKECMDGOALS),$(IGNORE_ALLDEPS)),0)
@@ -308,12 +308,12 @@ TERMINAL := gnome-terminal
 debug: $(UCOREIMG) $(SWAPIMG) $(FSIMG)
 	$(V)$(QEMU) -S -s -parallel stdio $(QEMUOPTS) -serial null &
 	$(V)sleep 2
-	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
+	$(V)$(TERMINAL) -e "gdb -q -x tools/gdbinit"
 
 debug-nox: $(UCOREIMG) $(SWAPIMG) $(FSIMG)
 	$(V)$(QEMU) -S -s -serial mon:stdio $(QEMUOPTS) -nographic &
 	$(V)sleep 2
-	$(V)$(TERMINAL) -e "$(GDB) -q -x tools/gdbinit"
+	$(V)$(TERMINAL) -e "gdb -q -x tools/gdbinit"
 
 RUN_PREFIX	:= _binary_$(OBJDIR)_$(USER_PREFIX)
 MAKEOPTS	:= --quiet --no-print-directory
@@ -321,8 +321,14 @@ MAKEOPTS	:= --quiet --no-print-directory
 run-%: build-%
 	$(V)$(QEMU) -parallel stdio $(QEMUOPTS) -serial null
 
+sh-%: script-%
+	$(V)$(QEMU) -parallel stdio $(QEMUOPTS) -serial null
+
 build-%: touch
 	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=$*"
+
+script-%: touch
+	$(V)$(MAKE) $(MAKEOPTS) "DEFS+=-DTEST=sh -DTESTSCRIPT=/script/$*"
 
 .PHONY: grade touch buildfs
 
