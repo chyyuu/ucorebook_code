@@ -28,6 +28,11 @@
 #define SYS_sem_get_value   44
 #define SYS_event_send      48
 #define SYS_event_recv      49
+#define SYS_mbox_init       50
+#define SYS_mbox_send       51
+#define SYS_mbox_recv       52
+#define SYS_mbox_free       53
+#define SYS_mbox_info       54
 
 /* SYS_fork flags */
 #define CLONE_VM            0x00000100  // set if VM shared between processes

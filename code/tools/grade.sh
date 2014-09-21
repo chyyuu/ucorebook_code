@@ -324,10 +324,10 @@ qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 brkfun=readline
 
 default_check() {
-    pts=7
+    pts=15
     check_regexps "$@"
 
-    pts=3
+    pts=5
     quick_check 'check output'                                  \
         'check_alloc_page() succeeded!'                         \
         'check_pgdir() succeeded!'                              \
@@ -350,101 +350,23 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'eventtest' -check default_check                 \
-        'kernel_execve: pid = 3, name = "eventtest".'           \
-        'child1 receive 0000000a from 3'                        \
-        'child1 receive 00000009 from 3'                        \
-        'child1 receive 00000008 from 3'                        \
-        'child1 receive 00000007 from 3'                        \
-        'child1 receive 00000006 from 3'                        \
-        'child1 receive 00000005 from 3'                        \
-        'child1 receive 00000004 from 3'                        \
-        'child1 receive 00000003 from 3'                        \
-        'child1 receive 00000002 from 3'                        \
-        'child1 receive 00000001 from 3'                        \
-        'child1 receive 00000000 from 3'                        \
-        'child1 Hmmm!'                                          \
-        'child1 quit'                                           \
-        'test1 pass.'                                           \
-        'child2 is spinning...'                                 \
-        'test2 pass.'                                           \
-        'test3 pass.'                                           \
-        'eventtest pass.'                                       \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'buggy_event'                                    \
-        'kernel_execve: pid = 3, name = "buggy_event".'         \
-        'child munmap ok.'                                      \
-        'buggy_event pass.'                                     \
+run_test -prog 'mboxtest' -check default_check                  \
+        'kernel_execve: pid = 3, name = "mboxtest".'            \
+        'mboxtest pass.'                                        \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
 pts=40
-timeout=500
+timeout=360
 
-run_test -prog 'primer3'                                        \
-        'kernel_execve: pid = 3, name = "primer3".'             \
-        '5 is a primer.'                                        \
-        '71 is a primer.'                                       \
-        '223 is a primer.'                                      \
-        '409 is a primer.'                                      \
-        '601 is a primer.'                                      \
-        '881 is a primer.'                                      \
-        '1163 is a primer.'                                     \
-        '1451 is a primer.'                                     \
-        '1733 is a primer.'                                     \
-        '2069 is a primer.'                                     \
-        '2383 is a primer.'                                     \
-        '2729 is a primer.'                                     \
-        '3079 is a primer.'                                     \
-        '3413 is a primer.'                                     \
-        '3767 is a primer.'                                     \
-        '4219 is a primer.'                                     \
-        '4561 is a primer.'                                     \
-        '4937 is a primer.'                                     \
-        '5387 is a primer.'                                     \
-        '5779 is a primer.'                                     \
-        '6247 is a primer.'                                     \
-        '6659 is a primer.'                                     \
-        '7069 is a primer.'                                     \
-        '7529 is a primer.'                                     \
-      - '...... 7 quit.'                                        \
-      - '...... 23 quit.'                                       \
-      - '...... 43 quit.'                                       \
-      - '...... 67 quit.'                                       \
-      - '...... 89 quit.'                                       \
-      - '...... 109 quit.'                                      \
-      - '...... 139 quit.'                                      \
-      - '...... 167 quit.'                                      \
-      - '...... 193 quit.'                                      \
-      - '...... 227 quit.'                                      \
-      - '...... 251 quit.'                                      \
-      - '...... 277 quit.'                                      \
-      - '...... 311 quit.'                                      \
-      - '...... 347 quit.'                                      \
-      - '...... 373 quit.'                                      \
-      - '...... 401 quit.'                                      \
-      - '...... 433 quit.'                                      \
-      - '...... 461 quit.'                                      \
-      - '...... 491 quit.'                                      \
-      - '...... 523 quit.'                                      \
-      - '...... 569 quit.'                                      \
-      - '...... 599 quit.'                                      \
-      - '...... 619 quit.'                                      \
-      - '...... 653 quit.'                                      \
-      - '...... 683 quit.'                                      \
-      - '...... 727 quit.'                                      \
-      - '...... 757 quit.'                                      \
-      - '...... 797 quit.'                                      \
-      - '...... 827 quit.'                                      \
-      - '...... 859 quit.'                                      \
-      - '...... 887 quit.'                                      \
-      - '...... 937 quit.'                                      \
-      - '...... 971 quit.'                                      \
-        'primer3 pass.'                                         \
+run_test -prog 'mboxmap'                                        \
+        'kernel_execve: pid = 3, name = "mboxmap".'             \
+        'fork children ok.'                                     \
+        'wait children ok.'                                     \
+        'mboxmap pass.'                                         \
+    !   'send data error!!'                                     \
+    ! - '^wrong: .*'                                            \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'

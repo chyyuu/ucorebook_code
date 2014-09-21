@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <sem.h>
 #include <event.h>
+#include <mbox.h>
 
 static uint32_t
 sys_exit(uint32_t arg[]) {
@@ -172,6 +173,41 @@ sys_event_recv(uint32_t arg[]) {
     return ipc_event_recv(pid_store, event_store, timeout);
 }
 
+static uint32_t
+sys_mbox_init(uint32_t arg[]) {
+    unsigned int max_slots = (unsigned int)arg[0];
+    return ipc_mbox_init(max_slots);
+}
+
+static uint32_t
+sys_mbox_send(uint32_t arg[]) {
+    int id = (int)arg[0];
+    struct mboxbuf *buf = (struct mboxbuf *)arg[1];
+    unsigned int timeout = (unsigned int)arg[2];
+    return ipc_mbox_send(id, buf, timeout);
+}
+
+static uint32_t
+sys_mbox_recv(uint32_t arg[]) {
+    int id = (int)arg[0];
+    struct mboxbuf *buf = (struct mboxbuf *)arg[1];
+    unsigned int timeout = (unsigned int)arg[2];
+    return ipc_mbox_recv(id, buf, timeout);
+}
+
+static uint32_t
+sys_mbox_free(uint32_t arg[]) {
+    int id = (int)arg[0];
+    return ipc_mbox_free(id);
+}
+
+static uint32_t
+sys_mbox_info(uint32_t arg[]) {
+    int id = (int)arg[0];
+    struct mboxinfo *info = (struct mboxinfo *)arg[1];
+    return ipc_mbox_info(id, info);
+}
+
 static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -197,6 +233,11 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_sem_get_value]     sys_sem_get_value,
     [SYS_event_send]        sys_event_send,
     [SYS_event_recv]        sys_event_recv,
+    [SYS_mbox_init]         sys_mbox_init,
+    [SYS_mbox_send]         sys_mbox_send,
+    [SYS_mbox_recv]         sys_mbox_recv,
+    [SYS_mbox_free]         sys_mbox_free,
+    [SYS_mbox_info]         sys_mbox_info,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

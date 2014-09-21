@@ -138,6 +138,41 @@ recv_event_timeout(int *pid_store, int *event_store, unsigned int timeout) {
     return sys_recv_event(pid_store, event_store, timeout);
 }
 
+int
+mbox_init(unsigned int max_slots) {
+    return sys_mbox_init(max_slots);
+}
+
+int
+mbox_send(int id, struct mboxbuf *buf) {
+    return sys_mbox_send(id, buf, 0);
+}
+
+int
+mbox_send_timeout(int id, struct mboxbuf *buf, unsigned int timeout) {
+    return sys_mbox_send(id, buf, timeout);
+}
+
+int
+mbox_recv(int id, struct mboxbuf *buf) {
+    return sys_mbox_recv(id, buf, 0);
+}
+
+int
+mbox_recv_timeout(int id, struct mboxbuf *buf, unsigned int timeout) {
+    return sys_mbox_recv(id, buf, timeout);
+}
+
+int
+mbox_free(int id) {
+    return sys_mbox_free(id);
+}
+
+int
+mbox_info(int id, struct mboxinfo *info) {
+    return sys_mbox_info(id, info);
+}
+
 int __clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 int

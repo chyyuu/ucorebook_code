@@ -2,6 +2,7 @@
 #include <types.h>
 #include <stdarg.h>
 #include <syscall.h>
+#include <mboxbuf.h>
 
 #define MAX_ARGS            5
 
@@ -134,5 +135,30 @@ sys_send_event(int pid, int event, unsigned int timeout) {
 int
 sys_recv_event(int *pid_store, int *event_store, unsigned int timeout) {
     return syscall(SYS_event_recv, pid_store, event_store, timeout);
+}
+
+int
+sys_mbox_init(unsigned int max_slots) {
+    return syscall(SYS_mbox_init, max_slots);
+}
+
+int
+sys_mbox_send(int id, struct mboxbuf *buf, unsigned int timeout) {
+    return syscall(SYS_mbox_send, id, buf, timeout);
+}
+
+int
+sys_mbox_recv(int id, struct mboxbuf *buf, unsigned int timeout) {
+    return syscall(SYS_mbox_recv, id, buf, timeout);
+}
+
+int
+sys_mbox_free(int id) {
+    return syscall(SYS_mbox_free, id);
+}
+
+int
+sys_mbox_info(int id, struct mboxinfo *info) {
+    return syscall(SYS_mbox_info, id, info);
 }
 

@@ -49,5 +49,16 @@ int send_event_timeout(int pid, int event, unsigned int timeout);
 int recv_event(int *pid_store, int *event_store);
 int recv_event_timeout(int *pid_store, int *event_store, unsigned int timeout);
 
+struct mboxbuf;
+struct mboxinfo;
+
+int mbox_init(unsigned int max_slots);
+int mbox_send(int id, struct mboxbuf *buf);
+int mbox_send_timeout(int id, struct mboxbuf *buf, unsigned int timeout);
+int mbox_recv(int id, struct mboxbuf *buf);
+int mbox_recv_timeout(int id, struct mboxbuf *buf, unsigned int timeout);
+int mbox_free(int id);
+int mbox_info(int id, struct mboxinfo *info);
+
 #endif /* !__USER_LIBS_ULIB_H__ */
 

@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <elf.h>
 #include <swap.h>
+#include <mbox.h>
 
 /* ------------- process/thread mechanism design&implementation -------------
 (an simplified Linux process/thread mechanism )
@@ -1145,7 +1146,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(eventtest);
+    KERNEL_EXECVE(mboxtest);
 #endif
     panic("user_main execve failed.\n");
 }
@@ -1186,6 +1187,8 @@ init_main(void *arg) {
         }
         schedule();
     }
+
+    mbox_cleanup();
 
     cprintf("all user-mode processes have quit.\n");
     assert(initproc->cptr == kswapd && initproc->yptr == NULL && initproc->optr == NULL);

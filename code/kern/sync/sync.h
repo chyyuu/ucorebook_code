@@ -27,5 +27,7 @@ __intr_restore(bool flag) {
 #define local_intr_save(x)      do { x = __intr_save(); } while (0)
 #define local_intr_restore(x)   __intr_restore(x);
 
+void sync_init(void);
+
 #endif /* !__KERN_SYNC_SYNC_H__ */
 
