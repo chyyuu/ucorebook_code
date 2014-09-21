@@ -1,29 +1,10 @@
-# Object files
+bin/
+obj/
+*~
+*.bak
+*.d
 *.o
-*.ko
-*.obj
-*.elf
+*.org
+.gdb.in
+.qemu.out
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
