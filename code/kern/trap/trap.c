@@ -1,14 +1,13 @@
 #include <types.h>
 #include <x86.h>
 #include <stdio.h>
-#include <string.h>
 #include <mmu.h>
 #include <memlayout.h>
 #include <console.h>
 #include <trap.h>
 #include <clock.h>
-#include <kgdb.h>
 #include <assert.h>
+#include <kdebug.h>
 
 #define TICK_NUM 100
 
@@ -129,7 +128,7 @@ trap_dispatch(struct trapframe *tf) {
     switch (tf->tf_trapno) {
     case T_DEBUG:
     case T_BRKPT:
-        kgdb_debug(tf);
+        debug_monitor(tf);
         break;
     case IRQ_OFFSET + IRQ_TIMER:
         ticks ++;
@@ -138,15 +137,14 @@ trap_dispatch(struct trapframe *tf) {
         }
         break;
     case IRQ_OFFSET + IRQ_COM1:
-        c = cons_getc();
-        cprintf("serial [%03d] %c\n", c, c);
-        break;
     case IRQ_OFFSET + IRQ_KBD:
-        c = cons_getc();
-        cprintf("kbd [%03d] %c\n", c, c);
-        break;
-    case IRQ_OFFSET + IRQ_COM2:
-        kgdb_intr(tf);
+        if ((c = cons_getc()) == 13) {
+            debug_monitor(tf);
+        }
+        else {
+            cprintf("%s [%03d] %c\n",
+                    (tf->tf_trapno != IRQ_OFFSET + IRQ_KBD) ? "serial" : "kbd", c, c);
+        }
         break;
     default:
         // in kernel, it must be a mistake

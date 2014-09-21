@@ -3,7 +3,10 @@
 #include <stab.h>
 #include <stdio.h>
 #include <string.h>
+#include <sync.h>
 #include <kdebug.h>
+#include <monitor.h>
+#include <assert.h>
 
 #define STACKFRAME_DEPTH 20
 
@@ -306,5 +309,161 @@ print_stackframe(void) {
         eip = ((uint32_t *)ebp)[1];
         ebp = ((uint32_t *)ebp)[0];
     }
+}
+
+// below codes are added for proj4.3+, 
+// and are used for ucore internal debugger support with hardware breakpoint&watchpoint functions
+
+// used to save debug registers
+static uint32_t local_dr[MAX_DR_NUM], status_dr, control_dr;
+
+static unsigned int local_dr_counter[MAX_DR_NUM];
+
+/* save_all_dr - save all debug registers to memory and then disable them */
+static void
+save_all_dr(void) {
+    int i;
+    for (i = 0; i < MAX_DR_NUM; i ++) {
+        local_dr[i] = read_dr(i);
+    }
+    status_dr = read_dr(DR_STATUS);
+    control_dr = read_dr(DR_CONTROL);
+
+    // disable breakpoints while debugger is running
+    write_dr(DR_CONTROL, 0);
+
+    // increase Debug Register Counter
+    unsigned regnum;
+    for (regnum = 0; regnum < MAX_DR_NUM; regnum ++) {
+        if (status_dr & (1 << regnum)) {
+            local_dr_counter[regnum] ++;
+        }
+    }
+}
+
+/* restore_all_dr - reset all debug registers and clear the status register DR6 */
+static void
+restore_all_dr(void) {
+    int i;
+    for (i = 0; i < MAX_DR_NUM; i ++) {
+        write_dr(i, local_dr[i]);
+    }
+    write_dr(DR_STATUS, 0);
+    write_dr(DR_CONTROL, control_dr);
+}
+
+/* debug_enable_dr - set and enable debug register @regnum locally */
+int
+debug_enable_dr(unsigned regnum, uintptr_t addr, unsigned type, unsigned len) {
+    if (regnum < MAX_DR_NUM) {
+        local_dr[regnum] = addr;
+        local_dr_counter[regnum] = 0;
+        unsigned shift = (regnum * 4) + 16;
+        uint32_t mask = (0xF << shift);
+        control_dr &= ~mask;
+        control_dr |= ((type & 3) << shift);
+        control_dr |= ((len & 3) << (shift + 2));
+        control_dr |= (1 << (regnum * 2));
+        return 0;
+    }
+    return -1;
+}
+
+/* debug_disable_dr - disable debug register @regnum locally */
+int
+debug_disable_dr(unsigned regnum) {
+    if (regnum < MAX_DR_NUM) {
+        unsigned shift = (regnum * 4) + 16;
+        uint32_t mask = (0xF << shift);
+        control_dr &= ~mask;
+        control_dr &= ~(1 << (regnum * 2));
+        return 0;
+    }
+    return -1;
+}
+
+static const char *BreakDescription[] = {
+    "EXECUTE", "WRITE", "IOPORT", "READ/WRITE",
+};
+
+static const char *BreakLengthDescription[] = {
+    "1-BYTE",  "2-BYTE",  "??????",  "4-BYTE",
+};
+
+// mark if local_dr, status_dr and contorl_dr are valid
+static bool is_dr_saved = 0;
+
+/* debug_init - init all debug registers by using restore_dr */
+void
+debug_init(void) {
+    memset(local_dr, 0, sizeof(local_dr));
+    memset(local_dr_counter, 0, sizeof(local_dr_counter));
+    control_dr = DR7_GEXACT | DR7_LEXACT;
+    restore_all_dr();
+}
+
+/* debug_list_dr - list and print all debug registrs' value and type */
+void
+debug_list_dr(void) {
+    bool has = 0;
+    int regnum;
+    for (regnum = 0; regnum < MAX_DR_NUM; regnum ++) {
+        if (control_dr & (1 << (regnum * 2))) {
+            if (!has) {
+                has = 1;
+                cprintf("    Num Address    Type       Len    Count\n");
+            }
+            unsigned shift = (regnum * 4) + 16;
+            unsigned type = ((control_dr >> shift) & 3);
+            unsigned len = ((control_dr >> (shift + 2)) & 3);
+            cprintf("    %1d   0x%08x %-10s %6s %d\n", regnum, local_dr[regnum],
+                    BreakDescription[type], BreakLengthDescription[len], local_dr_counter[regnum]);
+        }
+    }
+    if (!has) {
+        cprintf("no breakpoints or watchpoints.\n");
+    }
+}
+
+/* *
+ * debug_start - check if all debug registers have already been saved. When you
+ * type 'step' to decide to run a single step, debug_end won't restore all these
+ * debug registers, and keep the value of 'is_dr_saved'. When another debug interrupt
+ * occurs, it may go into this function again.
+ * */
+static void
+debug_start(struct trapframe *tf) {
+    if (!is_dr_saved) {
+        is_dr_saved = 1;
+        save_all_dr();
+    }
+}
+
+/* *
+ * debug_end - restore all debug registers if necessory. Note that, if kernel
+ * needs to run a single step, it should not restore them.
+ * */
+static void
+debug_end(struct trapframe *tf) {
+    if (!(tf->tf_eflags & FL_TF) && is_dr_saved) {
+        is_dr_saved = 0;
+        restore_all_dr();
+    }
+}
+
+/* debug_monitor - goes into the debugger monitor, and type 'continue' to return */
+void
+debug_monitor(struct trapframe *tf) {
+    assert(tf != NULL);
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        debug_start(tf);
+        cprintf("debug_monitor at:\n");
+        print_debuginfo(tf->tf_eip);
+        monitor(tf);
+        debug_end(tf);
+    }
+    local_intr_restore(intr_flag);
 }
 

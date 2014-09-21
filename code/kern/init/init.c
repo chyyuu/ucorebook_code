@@ -7,11 +7,11 @@
 #include <trap.h>
 #include <clock.h>
 #include <intr.h>
-#include <memlayout.h>
 #include <pmm.h>
-#include <kgdb.h>
 
 int kern_init(void) __attribute__((noreturn));
+
+static int watch_value = 0;
 
 #define MACRO_ADC(x)        (x ++)
 #define MACRO_ADC2(x)       MACRO_ADC(x); MACRO_ADC(x)
@@ -35,21 +35,19 @@ kern_init(void) {
 
     print_kerninfo();
 
+    debug_init();               // init debug registers
     pmm_init();                 // init physical memory management
 
     pic_init();                 // init interrupt controller
     idt_init();                 // init interrupt descriptor table
 
-    kgdb_init();                // init kgdb
-
     clock_init();               // init clock interrupt
     intr_enable();              // enable irq interrupt
 
     int num = 0;
-
-    /* do nothing */
     while (1) {
         MACRO_ADC256(num);
+        watch_value ++;
     }
 }
 

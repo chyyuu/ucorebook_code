@@ -47,7 +47,7 @@ HOSTCFLAGS	:= -g -Wall -O2
 GDB		:= $(GCCPREFIX)gdb
 
 CC		:= $(GCCPREFIX)gcc
-CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
+CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc
 CFLAGS	+= $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 CTYPE	:= c S
 
@@ -106,7 +106,8 @@ $(call add_files_cc,$(call listf_cc,$(LIBDIR)),libs,)
 KINCLUDE	+= kern/debug/ \
 			   kern/driver/ \
 			   kern/trap/ \
-			   kern/mm/
+			   kern/mm/ \
+			   kern/sync/
 
 KSRCDIR		+= kern/init \
 			   kern/libs \
@@ -159,12 +160,6 @@ $(call create_target_host,sign,sign)
 
 # -------------------------------------------------------------------
 
-# create 'connect' tools
-$(call add_files_host,tools/connect.c,connect,connect)
-$(call create_target,connect,connect,,$(HOSTCC),$(HOSTCFLAGS) -lpthread)
-
-# -------------------------------------------------------------------
-
 # create ucore.img
 UCOREIMG	:= $(call totarget,ucore.img)
 
@@ -209,12 +204,4 @@ debug-nox: $(UCOREIMG)
 .PHONY: clean
 clean:
 	-$(RM) -r $(OBJDIR) $(BINDIR)
-
-.PHONY: kgdb kgdb-nox
-kgdb: $(UCOREIMG) $(call totarget,connect)
-	$(V)$(call totarget,connect) &
-	$(V)$(QEMU) -parallel stdio -hda $< -serial null -serial tcp:127.0.0.1:9875,server
-
-kgdb-nox: $(UCOREIMG)
-	$(V)$(QEMU) -serial mon:stdio -hda $< -serial tcp:127.0.0.1:9875,server
 

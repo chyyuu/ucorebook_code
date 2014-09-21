@@ -17,7 +17,6 @@ delay(void) {
 
 /***** Serial I/O code *****/
 #define COM1            0x3F8
-#define COM2            0x2F8
 
 #define COM_RX          0       // In:  Receive buffer (DLAB=0)
 #define COM_TX          0       // Out: Transmit buffer (DLAB=0)
@@ -79,46 +78,34 @@ cga_init(void) {
     crt_pos = pos;
 }
 
-static bool serial1_exists = 0, serial2_exists = 0;
-
-static void
-serial_init_sub(const uint32_t COM, bool *status) {
-    // Turn off the FIFO
-    outb(COM + COM_FCR, 0);
-
-    // Set speed; requires DLAB latch
-    outb(COM + COM_LCR, COM_LCR_DLAB);
-    outb(COM + COM_DLL, (uint8_t) (115200 / 9600));
-    outb(COM + COM_DLM, 0);
-
-    // 8 data bits, 1 stop bit, parity off; turn off DLAB latch
-    outb(COM + COM_LCR, COM_LCR_WLEN8 & ~COM_LCR_DLAB);
-
-    // No modem controls
-    outb(COM + COM_MCR, 0);
-
-    // Enable rcv interrupts
-    outb(COM + COM_IER, COM_IER_RDI);
-
-    // Clear any preexisting overrun indications and interrupts
-    // Serial port doesn't exist if COM_LSR returns 0xFF
-    *status = (inb(COM + COM_LSR) != 0xFF);
-
-    (void) inb(COM + COM_IIR);
-    (void) inb(COM + COM_RX);
-}
+static bool serial_exists = 0;
 
 static void
 serial_init(void) {
-    serial_init_sub(COM1, &serial1_exists);
-    serial_init_sub(COM2, &serial2_exists);
+    // Turn off the FIFO
+    outb(COM1 + COM_FCR, 0);
 
-    if (serial1_exists) {
+    // Set speed; requires DLAB latch
+    outb(COM1 + COM_LCR, COM_LCR_DLAB);
+    outb(COM1 + COM_DLL, (uint8_t) (115200 / 9600));
+    outb(COM1 + COM_DLM, 0);
+
+    // 8 data bits, 1 stop bit, parity off; turn off DLAB latch
+    outb(COM1 + COM_LCR, COM_LCR_WLEN8 & ~COM_LCR_DLAB);
+
+    // No modem controls
+    outb(COM1 + COM_MCR, 0);
+    // Enable rcv interrupts
+    outb(COM1 + COM_IER, COM_IER_RDI);
+
+    // Clear any preexisting overrun indications and interrupts
+    // Serial port doesn't exist if COM_LSR returns 0xFF
+    serial_exists = (inb(COM1 + COM_LSR) != 0xFF);
+    (void) inb(COM1+COM_IIR);
+    (void) inb(COM1+COM_RX);
+
+    if (serial_exists) {
         pic_enable(IRQ_COM1);
-    }
-
-    if (serial2_exists) {
-        pic_enable(IRQ_COM2);
     }
 }
 
@@ -189,7 +176,7 @@ cga_putc(int c) {
 }
 
 static void
-serial1_putc_sub(int c) {
+serial_putc_sub(int c) {
     int i;
     for (i = 0; !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i ++) {
         delay();
@@ -199,14 +186,14 @@ serial1_putc_sub(int c) {
 
 /* serial_putc - print character to serial port */
 static void
-serial1_putc(int c) {
+serial_putc(int c) {
     if (c != '\b') {
-        serial1_putc_sub(c);
+        serial_putc_sub(c);
     }
     else {
-        serial1_putc_sub('\b');
-        serial1_putc_sub(' ');
-        serial1_putc_sub('\b');
+        serial_putc_sub('\b');
+        serial_putc_sub(' ');
+        serial_putc_sub('\b');
     }
 }
 
@@ -243,7 +230,7 @@ cons_intr(int (*proc)(void)) {
 
 /* serial_proc_data - get data from serial port */
 static int
-serial1_proc_data(void) {
+serial_proc_data(void) {
     if (!(inb(COM1 + COM_LSR) & COM_LSR_DATA)) {
         return -1;
     }
@@ -256,9 +243,9 @@ serial1_proc_data(void) {
 
 /* serial_intr - try to feed input characters from serial port */
 void
-serial1_intr(void) {
-    if (serial1_exists) {
-        cons_intr(serial1_proc_data);
+serial_intr(void) {
+    if (serial_exists) {
+        cons_intr(serial_proc_data);
     }
 }
 
@@ -428,7 +415,7 @@ cons_init(void) {
     cga_init();
     serial_init();
     kbd_init();
-    if (!serial1_exists) {
+    if (!serial_exists) {
         cprintf("serial port does not exist!!\n");
     }
 }
@@ -438,7 +425,7 @@ void
 cons_putc(int c) {
     lpt_putc(c);
     cga_putc(c);
-    serial1_putc(c);
+    serial_putc(c);
 }
 
 /* *
@@ -452,7 +439,7 @@ cons_getc(void) {
     // poll for any pending input characters,
     // so that this function works even when interrupts are disabled
     // (e.g., when called from the kernel monitor).
-    serial1_intr();
+    serial_intr();
     kbd_intr();
 
     // grab the next character from the input buffer.
@@ -464,28 +451,5 @@ cons_getc(void) {
         return c;
     }
     return 0;
-}
-
-/* serial_putc - print character to serial port 2, called by kgdb */
-void
-serial2_putc(int c) {
-    int i;
-    for (i = 0; !(inb(COM2 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i ++) {
-        delay();
-    }
-    outb(COM2 + COM_TX, c);
-}
-
-/* serial_getc - try to feed input characters from serial port 2, called by kgdb */
-int
-serial2_getc(void *buf) {
-    if (inb(COM2 + COM_LSR) & COM_LSR_DATA) {
-        char c = inb(COM2 + COM_RX);
-        if (buf != NULL) {
-            *(char *)buf = c;
-        }
-        return 0;
-    }
-    return -1;
 }
 
