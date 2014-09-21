@@ -769,21 +769,28 @@ check_swap(void) {
     *ptep1 = *ptep0;
 
     // page fault again
+    // update for copy on write
 
-    *(char *)0 = 0xFF;
-    *(char *)(PGSIZE + 1) = 0x88;
-    assert(pte2page(*ptep0) == pte2page(*ptep1));
+    *(char *)1 = 0x88;
+    *(char *)(PGSIZE) = 0x8F;
+    *(char *)(PGSIZE + 1) = 0xFF;
+    assert(pte2page(*ptep0) != pte2page(*ptep1));
+    assert(*(char *)0 == (char)0xEF);
+    assert(*(char *)1 == (char)0x88);
+    assert(*(char *)(PGSIZE) == (char)0x8F);
+    assert(*(char *)(PGSIZE + 1) == (char)0xFF);
+
     rp0 = pte2page(*ptep0);
-    assert(*(char *)1 == (char)0x88 && *(char *)PGSIZE == (char)0xFF);
+    rp1 = pte2page(*ptep1);
+    assert(!PageSwap(rp0) && PageSwap(rp1) && PageActive(rp1));
 
-    assert(page_ref(rp0) == 2 && rp0->index == entry && mem_map[1] == 0);
-
-    assert(PageSwap(rp0) && PageActive(rp0));
     entry = try_alloc_swap_entry();
+    assert(!PageSwap(rp0) && !PageSwap(rp1));
     assert(swap_offset(entry) == 1 && mem_map[1] == SWAP_UNUSED);
-    assert(!PageSwap(rp0));
     assert(list_empty(&(active_list.swap_list)));
     assert(list_empty(&(inactive_list.swap_list)));
+
+    page_insert(pgdir, rp0, PGSIZE, perm | PTE_A);
 
     // check swap_out_mm
 

@@ -315,7 +315,7 @@ brkfun=readline
 
 ## check now!!
 
-quick_run 'Check SHM'
+quick_run 'Check COW'
 
 pts=5
 quick_check 'check pmm'                                         \

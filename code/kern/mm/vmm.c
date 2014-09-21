@@ -648,11 +648,42 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
         }
     }
     else {
-        struct Page *page;
-        if ((ret = swap_in_page(*ptep, &page)) != 0) {
-            goto failed;
+        struct Page *page, *newpage = NULL;
+        bool cow = ((vma->vm_flags & (VM_SHARE | VM_WRITE)) == VM_WRITE), may_copy = 1;
+
+        assert(!(*ptep & PTE_P) || ((error_code & 2) && !(*ptep & PTE_W) && cow));
+        if (cow) {
+            newpage = alloc_page();
+        }
+        if (*ptep & PTE_P) {
+            page = pte2page(*ptep);
+        }
+        else {
+            if ((ret = swap_in_page(*ptep, &page)) != 0) {
+                if (newpage != NULL) {
+                    free_page(newpage);
+                }
+                goto failed;
+            }
+            if (!(error_code & 2) && cow) {
+                perm &= ~PTE_W;
+                may_copy = 0;
+            }
+        }
+
+        if (cow && may_copy) {
+            if (page_ref(page) + swap_page_count(page) > 1) {
+                if (newpage == NULL) {
+                    goto failed;
+                }
+                memcpy(page2kva(newpage), page2kva(page), PGSIZE);
+                page = newpage, newpage = NULL;
+            }
         }
         page_insert(mm->pgdir, page, addr, perm);
+        if (newpage != NULL) {
+            free_page(newpage);
+        }
     }
     ret = 0;
 
