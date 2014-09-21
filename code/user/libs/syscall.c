@@ -50,8 +50,8 @@ sys_wait(int pid, int *store) {
 }
 
 int
-sys_exec(const char *name, const char *path) {
-    return syscall(SYS_exec, name, path);
+sys_exec(const char *name, int argc, const char **argv) {
+    return syscall(SYS_exec, name, argc, argv);
 }
 
 int

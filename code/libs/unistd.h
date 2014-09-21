@@ -87,5 +87,8 @@
 #define FS_MAX_FNAME_LEN    255
 #define FS_MAX_FPATH_LEN    4095
 
+#define EXEC_MAX_ARG_NUM    32
+#define EXEC_MAX_ARG_LEN    4095
+
 #endif /* !__LIBS_UNISTD_H__ */
 

@@ -679,7 +679,8 @@ load_icode_read(int fd, void *buf, size_t len, off_t offset) {
 }
 
 static int
-load_icode(int fd) {
+load_icode(int fd, int argc, char **kargv) {
+    assert(argc >= 0 && argc <= EXEC_MAX_ARG_NUM);
     if (current->mm != NULL) {
         panic("load_icode: current->mm must be empty.\n");
     }
@@ -807,13 +808,22 @@ load_icode(int fd) {
     current->cr3 = PADDR(mm->pgdir);
     lcr3(PADDR(mm->pgdir));
 
+    uintptr_t stacktop = USTACKTOP - argc * PGSIZE;
+    char **uargv = (char **)(stacktop - argc * sizeof(char *));
+    int i;
+    for (i = 0; i < argc; i ++) {
+        uargv[i] = strcpy((char *)(stacktop + i * PGSIZE), kargv[i]);
+    }
+    stacktop = (uintptr_t)uargv - sizeof(int);
+    *(int *)stacktop = argc;
+
     struct trapframe *tf = current->tf;
     memset(tf, 0, sizeof(struct trapframe));
     tf->tf_cs = USER_CS;
     tf->tf_ds = USER_DS;
     tf->tf_es = USER_DS;
     tf->tf_ss = USER_DS;
-    tf->tf_esp = USTACKTOP;
+    tf->tf_esp = stacktop;
     tf->tf_eip = elf->e_entry;
     tf->tf_eflags = FL_IF;
     ret = 0;
@@ -829,27 +839,77 @@ bad_mm:
     goto out;
 }
 
+static void
+put_kargv(int argc, char **kargv) {
+    while (argc > 0) {
+        kfree(kargv[-- argc]);
+    }
+}
+
+static int
+copy_kargv(struct mm_struct *mm, int argc, char **kargv, const char **argv) {
+    int i, ret = -E_INVAL;
+    if (!user_mem_check(mm, (uintptr_t)argv, sizeof(const char *) * argc, 0)) {
+        return ret;
+    }
+    for (i = 0; i < argc; i ++) {
+        char *buffer;
+        if ((buffer = kmalloc(EXEC_MAX_ARG_LEN + 1)) == NULL) {
+            goto failed_nomem;
+        }
+        if (!copy_string(mm, buffer, argv[i], EXEC_MAX_ARG_LEN + 1)) {
+            kfree(buffer);
+            goto failed_cleanup;
+        }
+        kargv[i] = buffer;
+    }
+    return 0;
+
+failed_nomem:
+    ret = -E_NO_MEM;
+failed_cleanup:
+    put_kargv(i, kargv);
+    return ret;
+}
+
 int
-do_execve(const char *name, const char *path) {
+do_execve(const char *name, int argc, const char **argv) {
+    static_assert(EXEC_MAX_ARG_LEN >= FS_MAX_FPATH_LEN);
     struct mm_struct *mm = current->mm;
+    if (!(argc >= 1 && argc <= EXEC_MAX_ARG_NUM)) {
+        return -E_INVAL;
+    }
 
     char local_name[PROC_NAME_LEN + 1];
     memset(local_name, 0, sizeof(local_name));
+
+    char *kargv[EXEC_MAX_ARG_NUM];
+    const char *path;
+
+    int ret = -E_INVAL;
+
+    lock_mm(mm);
     if (name == NULL) {
         snprintf(local_name, sizeof(local_name), "<null> %d", current->pid);
     }
     else {
-        lock_mm(mm);
         if (!copy_string(mm, local_name, name, sizeof(local_name))) {
             unlock_mm(mm);
-            return -E_INVAL;
+            return ret;
         }
-        unlock_mm(mm);
     }
+    if ((ret = copy_kargv(mm, argc, kargv, argv)) != 0) {
+        unlock_mm(mm);
+        return ret;
+    }
+    path = argv[0];
+    unlock_mm(mm);
 
     fs_closeall(current->fs_struct);
 
-    int ret, fd;
+    /* sysfile_open will check the first argument path, thus we have to use a user-space pointer, and argv[0] may be incorrect */
+
+    int fd;
     if ((ret = fd = sysfile_open(path, O_RDONLY)) < 0) {
         goto execve_exit;
     }
@@ -877,14 +937,16 @@ do_execve(const char *name, const char *path) {
     }
     sem_queue_count_inc(current->sem_queue);
 
-    if ((ret = load_icode(fd)) != 0) {
+    if ((ret = load_icode(fd, argc, kargv)) != 0) {
         goto execve_exit;
     }
+    put_kargv(argc, kargv);
     de_thread(current);
     set_proc_name(current, local_name);
     return 0;
 
 execve_exit:
+    put_kargv(argc, kargv);
     do_exit(ret);
     panic("already exit: %e.\n", ret);
 }
@@ -1178,12 +1240,12 @@ out_unlock:
 }
 
 static int
-kernel_execve(const char *name, const char *path) {
+kernel_execve(const char *name, const char *path, ...) {
     int ret;
     asm volatile (
         "int %1;"
         : "=a" (ret)
-        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (path)
+        : "i" (T_SYSCALL), "0" (SYS_exec), "d" (name), "c" (1), "b" (&path)
         : "memory");
     return ret;
 }
@@ -1204,7 +1266,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST);
 #else
-    KERNEL_EXECVE(hello2);
+    KERNEL_EXECVE(sfs_exectest2);
 #endif
     panic("user_main execve failed.\n");
 }

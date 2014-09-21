@@ -355,39 +355,9 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'hello2' -check default_check                            \
-        'kernel_execve: pid = 3, name = "hello2".'                      \
-        'Hello world!!.'                                                \
-        'I am process 3.'                                               \
-        'hello2 pass.'                                                  \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-run_test -prog 'fwrite_test' -check default_check                       \
-        'kernel_execve: pid = 3, name = "fwrite_test".'                 \
-        'Hello world!!.'                                                \
-        'I am process 3.'                                               \
-        'dup fd ok.'                                                    \
-        'fork fd ok.'                                                   \
-        'fwrite_test pass.'                                             \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-run_test -prog 'fread_test2' -check default_check                       \
-        'kernel_execve: pid = 3, name = "fread_test2".'                 \
-        'fread_test2 pass.'                                             \
-        'all user-mode processes have quit.'                            \
-        'init check memory pass.'                                       \
-    ! - 'user panic at .*'
-
-show_part A
-
-pts=30
 timeout=300
 
-run_test -prog 'sfs_filetest1'                                          \
+run_test -prog 'sfs_filetest1' -check default_check                     \
         'kernel_execve: pid = 3, name = "sfs_filetest1".'               \
         'init_data ok.'                                                 \
         'random_test ok.'                                               \
@@ -396,14 +366,14 @@ run_test -prog 'sfs_filetest1'                                          \
         'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-run_test -prog 'sfs_filetest2'                                          \
+run_test -prog 'sfs_filetest2' -check default_check                     \
         'kernel_execve: pid = 3, name = "sfs_filetest2".'               \
         'sfs_filetest2 pass.'                                           \
         'all user-mode processes have quit.'                            \
         'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-run_test -prog 'sfs_dirtest1'                                           \
+run_test -prog 'sfs_dirtest1' -check default_check                      \
         'kernel_execve: pid = 3, name = "sfs_dirtest1".'                \
         '0: current: disk0:/'                                           \
         '1: current: disk0:/'                                           \
@@ -444,7 +414,9 @@ run_test -prog 'sfs_dirtest1'                                           \
         'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-show_part B
+show_part A
+
+pts=30
 
 run_test -prog 'sfs_filetest3'                                          \
         'kernel_execve: pid = 3, name = "sfs_filetest3".'               \
@@ -516,7 +488,7 @@ run_test -prog 'sfs_dirtest3'                                           \
         'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-show_part C
+show_part B
 
 run_test -prog 'sfs_exectest1'                                          \
         'kernel_execve: pid = 3, name = "sfs_exectest1".'               \
@@ -542,7 +514,35 @@ run_test -prog 'sfs_exectest1'                                          \
         'init check memory pass.'                                       \
     ! - 'user panic at .*'
 
-show_part D
+run_test -prog 'sfs_exectest2'                                          \
+        'kernel_execve: pid = 3, name = "sfs_exectest2".'               \
+        '1-0: bin/sfs_exectest2'                                        \
+        '2-0: bin/sfs_exectest2'                                        \
+        '2-1: arg0'                                                     \
+        '3-0: bin/sfs_exectest2'                                        \
+        '3-1: arg0'                                                     \
+        '3-2: arg1'                                                     \
+        '4-0: bin/sfs_exectest2'                                        \
+        '4-1: arg0'                                                     \
+        '4-2: arg1'                                                     \
+        '4-3: arg2'                                                     \
+        '5-0: bin/sfs_exectest2'                                        \
+        '5-1: arg0'                                                     \
+        '5-2: arg1'                                                     \
+        '5-3: arg2'                                                     \
+        '5-4: arg3'                                                     \
+        '6-0: bin/sfs_exectest2'                                        \
+        '6-1: arg0'                                                     \
+        '6-2: arg1'                                                     \
+        '6-3: arg2'                                                     \
+        '6-4: arg3'                                                     \
+        '6-5: arg4'                                                     \
+        'sfs_exectest2 pass.'                                           \
+        'all user-mode processes have quit.'                            \
+        'init check memory pass.'                                       \
+    ! - 'user panic at .*'
+
+show_part C
 
 ## print final-score
 show_final
