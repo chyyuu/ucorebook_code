@@ -37,5 +37,7 @@ void swap_duplicate(swap_entry_t entry);
 int swap_in_page(swap_entry_t entry, struct Page **pagep);
 int swap_copy_entry(swap_entry_t entry, swap_entry_t *store);
 
+int kswapd_main(void *arg) __attribute__((noreturn));
+
 #endif /* !__KERN_MM_SWAP_H__ */
 

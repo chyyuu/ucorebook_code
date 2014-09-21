@@ -9,10 +9,12 @@
 #include <x86.h>
 #include <error.h>
 #include <atomic.h>
-#include <sync.h>
 #include <string.h>
 #include <stdlib.h>
 #include <shmem.h>
+#include <proc.h>
+#include <wait.h>
+#include <sync.h>
 
 /* ------------- swap in/out & page replacement mechanism design&implementation -------------
 Hardware Requrirement:
@@ -113,6 +115,9 @@ static void check_mm_shm_swap(void);
 
 static lock_t swap_in_lock;
 
+static volatile int pressure = 0;
+static wait_queue_t kswapd_done;
+
 // swap_list_init - initialize the swap list
 static void
 swap_list_init(swap_list_t *list) {
@@ -178,18 +183,55 @@ swap_init(void) {
     check_swap();
     check_mm_swap();
     check_mm_shm_swap();
+
+    wait_queue_init(&kswapd_done);
+    swap_init_ok = 1;
 }
 
 // try_free_pages - calculate pressure to estimate the number(pressure<<5) of needed page frames in ucore currently, 
 //                - then call kswapd kernel thread.
 bool
 try_free_pages(size_t n) {
-    if (!swap_init_ok) {
+    if (!swap_init_ok || kswapd == NULL) {
         return 0;
     }
-    /* in next lab, swap_init_ok will be set by a kernel thread, named kswapd.
-     * but in this lab, this function do no nothing */
-    panic("not implemented yet.!\n");
+    if (current == kswapd) {
+        panic("kswapd call try_free_pages!!.\n");
+    }
+    if (n >= (1 << 7)) {
+        return 0;
+    }
+    pressure += n;
+
+    wait_t __wait, *wait = &__wait;
+
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        wait_init(wait, current);
+        current->state = PROC_SLEEPING;
+        current->wait_state = WT_KSWAPD;
+        wait_queue_add(&kswapd_done, wait);
+        if (kswapd->wait_state == WT_TIMER) {
+            wakeup_proc(kswapd);
+        }
+    }
+    local_intr_restore(intr_flag);
+
+    schedule();
+
+    assert(!wait_in_queue(wait) && wait->wakeup_flags == WT_KSWAPD);
+    return 1;
+}
+
+static void
+kswapd_wakeup_all(void) {
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        wakeup_queue(&kswapd_done, WT_KSWAPD, 1);
+    }
+    local_intr_restore(intr_flag);
 }
 
 static swap_entry_t try_alloc_swap_entry(void);
@@ -574,6 +616,37 @@ swap_out_mm(struct mm_struct *mm, size_t require) {
         addr = vma->vm_start;
     }
     return free_count;
+}
+
+int
+kswapd_main(void *arg) {
+    int guard = 0;
+    while (1) {
+        if (pressure > 0) {
+            int needs = (pressure << 5), rounds = 16;
+            list_entry_t *list = &proc_mm_list;
+            assert(!list_empty(list));
+            while (needs > 0 && rounds -- > 0) {
+                list_entry_t *le = list_next(list);
+                list_del(le);
+                list_add_before(list, le);
+                struct mm_struct *mm = le2mm(le, proc_mm_link);
+                needs -= swap_out_mm(mm, (needs < 32) ? needs : 32);
+            }
+        }
+        pressure -= page_launder();
+        refill_inactive_scan();
+        if (pressure > 0) {
+            if ((++ guard) >= 1000) {
+                guard = 0;
+                warn("kswapd: may out of memory");
+            }
+            continue ;
+        }
+        pressure = 0, guard = 0;
+        kswapd_wakeup_all();
+        do_sleep(1000);
+    }
 }
 
 // check_swap - check the correctness of swap & page replacement algorithm

@@ -318,16 +318,16 @@ osimg=$(make_print ucoreimg)
 swapimg=$(make_print swapimg)
 
 ## set default qemu-options
-qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
+qemuopts="-m 48m -hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 
 ## set break-function, default is readline
 brkfun=readline
 
 default_check() {
-    pts=3
+    pts=7
     check_regexps "$@"
 
-    pts=2
+    pts=3
     quick_check 'check output'                                  \
         'check_alloc_page() succeeded!'                         \
         'check_pgdir() succeeded!'                              \
@@ -350,111 +350,8 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'yield' -check default_check                     \
-        'kernel_execve: pid = 2, name = "yield".'               \
-        'Hello, I am process 2.'                                \
-        'Back in process 2, iteration 0.'                       \
-        'Back in process 2, iteration 1.'                       \
-        'Back in process 2, iteration 2.'                       \
-        'Back in process 2, iteration 3.'                       \
-        'Back in process 2, iteration 4.'                       \
-        'All done in process 2.'                                \
-        'yield pass.'
-
-run_test -prog 'exit' -check default_check                      \
-        'kernel_execve: pid = 2, name = "exit".'                \
-        'I am the parent. Forking the child...'                 \
-        'I am the parent, waiting now..'                        \
-        'I am the child.'                                       \
-      - 'waitpid [0-9]+ ok\.'                                   \
-        'exit pass.'                                            \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'waitkill' -check default_check                  \
-        'kernel_execve: pid = 2, name = "waitkill".'            \
-        'wait child 1.'                                         \
-        'child 2.'                                              \
-        'child 1.'                                              \
-        'kill parent ok.'                                       \
-        'kill child1 ok.'                                       \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-pts=5
-
-run_test -prog 'forktest'                                       \
-        'kernel_execve: pid = 2, name = "forktest".'            \
-        'I am child 31'                                         \
-        'I am child 19'                                         \
-        'I am child 13'                                         \
-        'I am child 0'                                          \
-        'forktest pass.'                                        \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'fork claimed to work [0-9]+ times!'                    \
-    !   'wait stopped early'                                    \
-    !   'wait got too many'                                     \
-    ! - 'user panic at .*'
-
-run_test -prog 'forktree'                                       \
-        'kernel_execve: pid = 2, name = "forktree".'            \
-      - '....: I am '\'''\'                                     \
-      - '....: I am '\''0'\'                                    \
-      - '....: I am '\'''\'                                     \
-      - '....: I am '\''1'\'                                    \
-      - '....: I am '\''0'\'                                    \
-      - '....: I am '\''01'\'                                   \
-      - '....: I am '\''00'\'                                   \
-      - '....: I am '\''11'\'                                   \
-      - '....: I am '\''10'\'                                   \
-      - '....: I am '\''101'\'                                  \
-      - '....: I am '\''100'\'                                  \
-      - '....: I am '\''111'\'                                  \
-      - '....: I am '\''110'\'                                  \
-      - '....: I am '\''001'\'                                  \
-      - '....: I am '\''000'\'                                  \
-      - '....: I am '\''011'\'                                  \
-      - '....: I am '\''010'\'                                  \
-      - '....: I am '\''0101'\'                                 \
-      - '....: I am '\''0100'\'                                 \
-      - '....: I am '\''0111'\'                                 \
-      - '....: I am '\''0110'\'                                 \
-      - '....: I am '\''0001'\'                                 \
-      - '....: I am '\''0000'\'                                 \
-      - '....: I am '\''0011'\'                                 \
-      - '....: I am '\''0010'\'                                 \
-      - '....: I am '\''1101'\'                                 \
-      - '....: I am '\''1100'\'                                 \
-      - '....: I am '\''1111'\'                                 \
-      - '....: I am '\''1110'\'                                 \
-      - '....: I am '\''1001'\'                                 \
-      - '....: I am '\''1000'\'                                 \
-      - '....: I am '\''1011'\'                                 \
-      - '....: I am '\''1010'\'                                 \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'
-
-run_test -prog 'badbrktest'                                     \
-        'kernel_execve: pid = 2, name = "badbrktest".'          \
-        'I am child.'                                           \
-        'I am going to eat out all the mem, MU HA HA!!.'        \
-        'I ate 1000 slots.'                                     \
-        '  trap 0x0000000e Page Fault'                          \
-        '  err  0x00000006'                                     \
-      - '  eip  0x008.....'                                     \
-      - '  esp  0xaff.....'                                     \
-        'killed by kernel.'                                     \
-        'child is killed by kernel, en.'                        \
-        'badbrktest pass.'                                      \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'brkfreetest'                                    \
-        'kernel_execve: pid = 2, name = "brkfreetest".'         \
+run_test -prog 'brkfreetest' -check default_check               \
+        'kernel_execve: pid = 3, name = "brkfreetest".'         \
         'page fault!!'                                          \
         '  trap 0x0000000e Page Fault'                          \
         '  err  0x00000006'                                     \
@@ -467,7 +364,7 @@ run_test -prog 'brkfreetest'                                    \
     ! - 'user panic at .*'
 
 run_test -prog 'brktest'                                        \
-        'kernel_execve: pid = 2, name = "brktest".'             \
+        'kernel_execve: pid = 3, name = "brktest".'             \
         'I am going to eat out all the mem, MU HA HA!!.'        \
         'I ate 5000 slots.'                                     \
         'I ate 10000 slots.'                                    \
@@ -481,7 +378,7 @@ pts=10
 timeout=240
 
 run_test -prog 'sleep'                                          \
-        'kernel_execve: pid = 2, name = "sleep".'               \
+        'kernel_execve: pid = 3, name = "sleep".'               \
         'I am child and I will eat out all the memory.'         \
         'I ate 1000 slots.'                                     \
         'I ate 5000 slots.'                                     \
@@ -498,8 +395,46 @@ run_test -prog 'sleep'                                          \
     ! - 'user panic at .*'
 
 run_test -prog 'sleepkill'                                      \
-        'kernel_execve: pid = 2, name = "sleepkill".'           \
+        'kernel_execve: pid = 3, name = "sleepkill".'           \
         'sleepkill pass.'                                       \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+pts=25
+
+run_test -prog 'cowtest'                                        \
+        'kernel_execve: pid = 3, name = "cowtest".'             \
+        'fork ok.'                                              \
+        'cowtest pass.'                                         \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'swaptest'                                       \
+        'kernel_execve: pid = 3, name = "swaptest".'            \
+        'buffer size = 00500000'                                \
+        'parent init ok.'                                       \
+      - 'child 0 fork ok, pid = [0-9]+.'                        \
+      - 'child 1 fork ok, pid = [0-9]+.'                        \
+      - 'child 2 fork ok, pid = [0-9]+.'                        \
+      - 'child 3 fork ok, pid = [0-9]+.'                        \
+      - 'child 4 fork ok, pid = [0-9]+.'                        \
+      - 'child 5 fork ok, pid = [0-9]+.'                        \
+      - 'child 6 fork ok, pid = [0-9]+.'                        \
+      - 'child 7 fork ok, pid = [0-9]+.'                        \
+      - 'child 8 fork ok, pid = [0-9]+.'                        \
+      - 'child 9 fork ok, pid = [0-9]+.'                        \
+        'check cow ok.'                                         \
+        'round 0'                                               \
+        'round 1'                                               \
+        'round 2'                                               \
+        'round 3'                                               \
+        'round 4'                                               \
+        'child check ok.'                                       \
+        'wait ok.'                                              \
+        'check buffer ok.'                                      \
+        'swaptest pass.'                                        \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'

@@ -58,6 +58,7 @@ mm_create(void) {
         set_mm_count(mm, 0);
         lock_init(&(mm->mm_lock));
         mm->brk_start = mm->brk = 0;
+        list_init(&(mm->proc_mm_link));
     }
     return mm;
 }

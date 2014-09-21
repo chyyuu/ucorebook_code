@@ -154,11 +154,15 @@ struct Page *
 alloc_pages(size_t n) {
     bool intr_flag;
     struct Page *page;
+try_again:
     local_intr_save(intr_flag);
     {
         page = pmm_manager->alloc_pages(n);
     }
     local_intr_restore(intr_flag);
+    if (page == NULL && try_free_pages(n)) {
+        goto try_again;
+    }
     return page;
 }
 

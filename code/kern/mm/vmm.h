@@ -47,7 +47,11 @@ struct mm_struct {
     atomic_t mm_count;
     lock_t mm_lock;
     uintptr_t brk_start, brk;
+    list_entry_t proc_mm_link;
 };
+
+#define le2mm(le, member)                   \
+    to_struct((le), struct mm_struct, member)
 
 #define RB_MIN_MAP_COUNT        32 // If the count of vma >32 then redblack tree link is used
 

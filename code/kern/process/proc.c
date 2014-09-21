@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <swap.h>
 
 /* ------------- process/thread mechanism design&implementation -------------
 (an simplified Linux process/thread mechanism )
@@ -61,6 +62,8 @@ SYS_getpid      : get the process's pid
 
 // the process set's list
 list_entry_t proc_list;
+// the process set's mm's list
+list_entry_t proc_mm_list;
 
 #define HASH_SHIFT          10
 #define HASH_LIST_SIZE      (1 << HASH_SHIFT)
@@ -75,6 +78,8 @@ struct proc_struct *idleproc = NULL;
 struct proc_struct *initproc = NULL;
 // current proc
 struct proc_struct *current = NULL;
+// swap daemon proc
+struct proc_struct *kswapd = NULL;
 
 static int nr_process = 0;
 
@@ -325,6 +330,12 @@ good_mm:
     if (mm != oldmm) {
         mm->brk_start = oldmm->brk_start;
         mm->brk = oldmm->brk;
+        bool intr_flag;
+        local_intr_save(intr_flag);
+        {
+            list_add(&(proc_mm_list), &(mm->proc_mm_link));
+        }
+        local_intr_restore(intr_flag);
     }
     mm_count_inc(mm);
     proc->mm = mm;
@@ -424,6 +435,12 @@ do_exit(int error_code) {
         if (mm_count_dec(mm) == 0) {
             exit_mmap(mm);
             put_pgdir(mm);
+            bool intr_flag;
+            local_intr_save(intr_flag);
+            {
+                list_del(&(mm->proc_mm_link));
+            }
+            local_intr_restore(intr_flag);
             mm_destroy(mm);
         }
         current->mm = NULL;
@@ -577,6 +594,12 @@ load_icode(unsigned char *binary, size_t size) {
         goto bad_cleanup_mmap;
     }
 
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        list_add(&(proc_mm_list), &(mm->proc_mm_link));
+    }
+    local_intr_restore(intr_flag);
     mm_count_inc(mm);
     current->mm = mm;
     current->cr3 = PADDR(mm->pgdir);
@@ -626,6 +649,12 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
         if (mm_count_dec(mm) == 0) {
             exit_mmap(mm);
             put_pgdir(mm);
+            bool intr_flag;
+            local_intr_save(intr_flag);
+            {
+                list_del(&(mm->proc_mm_link));
+            }
+            local_intr_restore(intr_flag);
             mm_destroy(mm);
         }
         current->mm = NULL;
@@ -837,7 +866,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(sleep);
+    KERNEL_EXECVE(swaptest);
 #endif
     panic("user_main execve failed.\n");
 }
@@ -845,23 +874,44 @@ user_main(void *arg) {
 // init_main - the second kernel thread used to create kswapd_main & user_main kernel threads
 static int
 init_main(void *arg) {
+    int pid;
+    if ((pid = kernel_thread(kswapd_main, NULL, 0)) <= 0) {
+        panic("kswapd init failed.\n");
+    }
+    kswapd = find_proc(pid);
+    set_proc_name(kswapd, "kswapd");
+
     size_t nr_free_pages_store = nr_free_pages();
     size_t slab_allocated_store = slab_allocated();
 
-    int pid = kernel_thread(user_main, NULL, 0);
+    unsigned int nr_process_store = nr_process;
+
+    pid = kernel_thread(user_main, NULL, 0);
     if (pid <= 0) {
         panic("create user_main failed.\n");
     }
 
     while (do_wait(0, NULL) == 0) {
+        if (nr_process_store == nr_process) {
+            break;
+        }
+        schedule();
+    }
+
+    assert(kswapd != NULL);
+
+    int i;
+    for (i = 0; i < 10; i ++) {
+        if (kswapd->wait_state == WT_TIMER) {
+            wakeup_proc(kswapd);
+        }
         schedule();
     }
 
     cprintf("all user-mode processes have quit.\n");
-    assert(initproc->cptr == NULL && initproc->yptr == NULL && initproc->optr == NULL);
-    assert(nr_process == 2);
-    assert(list_next(&proc_list) == &(initproc->list_link));
-    assert(list_prev(&proc_list) == &(initproc->list_link));
+    assert(initproc->cptr == kswapd && initproc->yptr == NULL && initproc->optr == NULL);
+    assert(kswapd->cptr == NULL && kswapd->yptr == NULL && kswapd->optr == NULL);
+    assert(nr_process == 3);
     assert(nr_free_pages_store == nr_free_pages());
     assert(slab_allocated_store == slab_allocated());
     cprintf("init check memory pass.\n");
@@ -875,6 +925,7 @@ proc_init(void) {
     int i;
 
     list_init(&proc_list);
+    list_init(&proc_mm_list);
     for (i = 0; i < HASH_LIST_SIZE; i ++) {
         list_init(hash_list + i);
     }

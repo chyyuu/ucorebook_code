@@ -38,6 +38,7 @@ struct context {
 #define MAX_PID                     (MAX_PROCESS * 2)
 
 extern list_entry_t proc_list;
+extern list_entry_t proc_mm_list;
 
 struct proc_struct {
     enum proc_state state;                      // Process state
@@ -64,12 +65,14 @@ struct proc_struct {
 //the wait state
 #define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)  // wait child process
 #define WT_TIMER                    (0x00000002 | WT_INTERRUPTED)  // wait timer
+#define WT_KSWAPD                    0x00000003                    // wait kswapd to free page
 #define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
 
 #define le2proc(le, member)         \
     to_struct((le), struct proc_struct, member)
 
 extern struct proc_struct *idleproc, *initproc, *current;
+extern struct proc_struct *kswapd;
 
 void proc_init(void);
 void proc_run(struct proc_struct *proc);
