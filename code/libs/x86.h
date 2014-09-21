@@ -35,6 +35,7 @@ struct pseudodesc {
 static inline void lidt(struct pseudodesc *pd) __attribute__((always_inline));
 static inline void sti(void) __attribute__((always_inline));
 static inline void cli(void) __attribute__((always_inline));
+static inline void ltr(uint16_t sel) __attribute__((always_inline));
 
 static inline uint8_t
 inb(uint16_t port) {
@@ -83,6 +84,11 @@ sti(void) {
 static inline void
 cli(void) {
     asm volatile ("cli" ::: "memory");
+}
+
+static inline void
+ltr(uint16_t sel) {
+    asm volatile ("ltr %0" :: "r" (sel) : "memory");
 }
 
 static inline int __strcmp(const char *s1, const char *s2) __attribute__((always_inline));

@@ -1,5 +1,4 @@
 #include <types.h>
-#include <x86.h>
 #include <stdio.h>
 #include <string.h>
 #include <console.h>
@@ -7,6 +6,8 @@
 #include <picirq.h>
 #include <trap.h>
 #include <clock.h>
+#include <intr.h>
+#include <pmm.h>
 
 int kern_init(void) __attribute__((noreturn));
 
@@ -22,12 +23,13 @@ kern_init(void) {
 
     print_kerninfo();
 
+    pmm_init();                 // init physical memory management
+
     pic_init();                 // init interrupt controller
     idt_init();                 // init interrupt descriptor table
 
     clock_init();               // init clock interrupt
-
-    sti();                      // enable irq interrupt
+    intr_enable();              // enable irq interrupt
 
     /* do nothing */
     while (1);

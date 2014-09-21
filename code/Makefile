@@ -1,4 +1,4 @@
-PROJ	:= 4
+PROJ	:= 4.1
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -120,7 +120,8 @@ KSRCDIR		+= kern/init \
 			   kern/libs \
 			   kern/debug \
 			   kern/driver \
-			   kern/trap
+			   kern/trap \
+			   kern/mm
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
