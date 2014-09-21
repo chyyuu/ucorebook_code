@@ -99,7 +99,8 @@ struct e820map {
 struct Page {
     atomic_t ref;                   // page frame's reference counter
     uint32_t flags;                 // array of flags that describe the status of the page frame
-    unsigned int property;          // # of pages in continuous memory block
+    unsigned int property;          // used in buddy system, stores the order (the X in 2^X) of the continuous memory block
+    int zone_num;                   // used in buddy system, the No. of zone which the page belongs to
     list_entry_t page_link;         // free list link
 };
 

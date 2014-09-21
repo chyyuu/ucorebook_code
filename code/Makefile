@@ -1,4 +1,4 @@
-PROJ	:= 5.1
+PROJ	:= 5.2
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
