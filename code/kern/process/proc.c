@@ -322,6 +322,10 @@ copy_mm(uint32_t clone_flags, struct proc_struct *proc) {
     }
 
 good_mm:
+    if (mm != oldmm) {
+        mm->brk_start = oldmm->brk_start;
+        mm->brk = oldmm->brk;
+    }
     mm_count_inc(mm);
     proc->mm = mm;
     proc->cr3 = PADDR(mm->pgdir);
@@ -481,6 +485,8 @@ load_icode(unsigned char *binary, size_t size) {
         goto bad_pgdir_cleanup_mm;
     }
 
+    mm->brk_start = 0;
+
     struct Page *page;
 
     struct elfhdr *elf = (struct elfhdr *)binary;
@@ -511,6 +517,9 @@ load_icode(unsigned char *binary, size_t size) {
 
         if ((ret = mm_map(mm, ph->p_va, ph->p_memsz, vm_flags, NULL)) != 0) {
             goto bad_cleanup_mmap;
+        }
+        if (mm->brk_start < ph->p_va + ph->p_memsz) {
+            mm->brk_start = ph->p_va + ph->p_memsz;
         }
 
         unsigned char *from = binary + ph->p_offset;
@@ -560,6 +569,8 @@ load_icode(unsigned char *binary, size_t size) {
             start += size;
         }
     }
+
+    mm->brk_start = mm->brk = ROUNDUP(mm->brk_start, PGSIZE);
 
     vm_flags = VM_READ | VM_WRITE | VM_STACK;
     if ((ret = mm_map(mm, USTACKTOP - USTACKSIZE, USTACKSIZE, vm_flags, NULL)) != 0) {
@@ -719,6 +730,54 @@ do_kill(int pid) {
     return -E_INVAL;
 }
 
+// do_brk - adjust(increase/decrease) the size of process heap, align with page size
+// NOTE: will change the process vma
+int
+do_brk(uintptr_t *brk_store) {
+    struct mm_struct *mm = current->mm;
+    if (mm == NULL) {
+        panic("kernel thread call sys_brk!!.\n");
+    }
+    if (brk_store == NULL) {
+        return -E_INVAL;
+    }
+    if (!user_mem_check(mm, (uintptr_t)brk_store, sizeof(uintptr_t), 1)) {
+        return -E_INVAL;
+    }
+
+    uintptr_t brk = *brk_store;
+
+    if (brk < mm->brk_start) {
+        goto out;
+    }
+    uintptr_t newbrk = ROUNDUP(brk, PGSIZE), oldbrk = mm->brk;
+    assert(oldbrk % PGSIZE == 0);
+    if (newbrk == oldbrk) {
+        goto out;
+    }
+
+    lock_mm(mm);
+    if (newbrk < oldbrk) {
+        if (mm_unmap(mm, newbrk, oldbrk - newbrk) != 0) {
+            goto out_unlock;
+        }
+    }
+    else {
+        if (find_vma_intersection(mm, oldbrk, newbrk + PGSIZE) != NULL) {
+            goto out_unlock;
+        }
+        if (mm_brk(mm, oldbrk, newbrk - oldbrk) != 0) {
+            goto out_unlock;
+        }
+    }
+    mm->brk = newbrk;
+out_unlock:
+    unlock_mm(mm);
+out:
+    *brk_store = mm->brk;
+    return 0;
+}
+
 // kernel_execve - do SYS_exec syscall to exec a user program called by user_main kernel_thread
 static int
 kernel_execve(const char *name, unsigned char *binary, size_t size) {
@@ -757,7 +816,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(exit);
+    KERNEL_EXECVE(badbrktest);
 #endif
     panic("user_main execve failed.\n");
 }

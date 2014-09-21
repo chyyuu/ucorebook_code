@@ -5,27 +5,27 @@
 #include <pmm.h>
 #include <assert.h>
 
-static int
+static uint32_t
 sys_exit(uint32_t arg[]) {
     int error_code = (int)arg[0];
     return do_exit(error_code);
 }
 
-static int
+static uint32_t
 sys_fork(uint32_t arg[]) {
     struct trapframe *tf = current->tf;
     uintptr_t stack = tf->tf_esp;
     return do_fork(0, stack, tf);
 }
 
-static int
+static uint32_t
 sys_wait(uint32_t arg[]) {
     int pid = (int)arg[0];
     int *store = (int *)arg[1];
     return do_wait(pid, store);
 }
 
-static int
+static uint32_t
 sys_exec(uint32_t arg[]) {
     const char *name = (const char *)arg[0];
     size_t len = (size_t)arg[1];
@@ -34,36 +34,42 @@ sys_exec(uint32_t arg[]) {
     return do_execve(name, len, binary, size);
 }
 
-static int
+static uint32_t
 sys_yield(uint32_t arg[]) {
     return do_yield();
 }
 
-static int
+static uint32_t
 sys_kill(uint32_t arg[]) {
     int pid = (int)arg[0];
     return do_kill(pid);
 }
 
-static int
+static uint32_t
 sys_getpid(uint32_t arg[]) {
     return current->pid;
 }
 
-static int
+static uint32_t
+sys_brk(uint32_t arg[]) {
+    uintptr_t *brk_store = (uintptr_t *)arg[0];
+    return do_brk(brk_store);
+}
+
+static uint32_t
 sys_putc(uint32_t arg[]) {
     int c = (int)arg[0];
     cputchar(c);
     return 0;
 }
 
-static int
+static uint32_t
 sys_pgdir(uint32_t arg[]) {
     print_pgdir();
     return 0;
 }
 
-static int (*syscalls[])(uint32_t arg[]) = {
+static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
     [SYS_wait]              sys_wait,
@@ -71,6 +77,7 @@ static int (*syscalls[])(uint32_t arg[]) = {
     [SYS_yield]             sys_yield,
     [SYS_kill]              sys_kill,
     [SYS_getpid]            sys_getpid,
+    [SYS_brk]               sys_brk,
     [SYS_putc]              sys_putc,
     [SYS_pgdir]             sys_pgdir,
 };

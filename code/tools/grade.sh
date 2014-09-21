@@ -350,12 +350,6 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'hello' -check default_check                     \
-        'kernel_execve: pid = 2, name = "hello".'               \
-        'Hello world!!.'                                        \
-        'I am process 2.'                                       \
-        'hello pass.'
-
 run_test -prog 'yield' -check default_check                     \
         'kernel_execve: pid = 2, name = "yield".'               \
         'Hello, I am process 2.'                                \
@@ -367,17 +361,7 @@ run_test -prog 'yield' -check default_check                     \
         'All done in process 2.'                                \
         'yield pass.'
 
-run_test -prog 'badarg' -check default_check                    \
-        'kernel_execve: pid = 2, name = "badarg".'              \
-        'fork ok.'                                              \
-        'badarg pass.'                                          \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-pts=10
-
-run_test -prog 'exit'                                           \
+run_test -prog 'exit' -check default_check                      \
         'kernel_execve: pid = 2, name = "exit".'                \
         'I am the parent. Forking the child...'                 \
         'I am the parent, waiting now..'                        \
@@ -388,20 +372,7 @@ run_test -prog 'exit'                                           \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-run_test -prog 'spin'                                           \
-        'kernel_execve: pid = 2, name = "spin".'                \
-        'I am the parent. Forking the child...'                 \
-        'I am the parent. Running the child...'                 \
-        'I am the child. spinning ...'                          \
-        'I am the parent.  Killing the child...'                \
-        'kill returns 0'                                        \
-        'wait returns 0'                                        \
-        'spin may pass.'                                        \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
-
-run_test -prog 'waitkill'                                       \
+run_test -prog 'waitkill' -check default_check                  \
         'kernel_execve: pid = 2, name = "waitkill".'            \
         'wait child 1.'                                         \
         'child 2.'                                              \
@@ -412,7 +383,7 @@ run_test -prog 'waitkill'                                       \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-pts=15
+pts=10
 
 run_test -prog 'forktest'                                       \
         'kernel_execve: pid = 2, name = "forktest".'            \
@@ -427,8 +398,6 @@ run_test -prog 'forktest'                                       \
     !   'wait stopped early'                                    \
     !   'wait got too many'                                     \
     ! - 'user panic at .*'
-
-pts=20
 
 run_test -prog 'forktree'                                       \
         'kernel_execve: pid = 2, name = "forktree".'            \
@@ -465,6 +434,52 @@ run_test -prog 'forktree'                                       \
       - '....: I am '\''1000'\'                                 \
       - '....: I am '\''1011'\'                                 \
       - '....: I am '\''1010'\'                                 \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'
+
+pts=15
+
+run_test -prog 'badbrktest'                                     \
+        'kernel_execve: pid = 2, name = "badbrktest".'          \
+        'I am child.'                                           \
+        'I am going to eat out all the mem, MU HA HA!!.'        \
+        'I ate 1000 slots.'                                     \
+        '  trap 0x0000000e Page Fault'                          \
+        '  err  0x00000006'                                     \
+      - '  eip  0x008.....'                                     \
+      - '  esp  0xaff.....'                                     \
+        'killed by kernel.'                                     \
+        'child is killed by kernel, en.'                        \
+        'badbrktest pass.'                                      \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+pts=15
+
+run_test -prog 'brkfreetest'                                    \
+        'kernel_execve: pid = 2, name = "brkfreetest".'         \
+        'page fault!!'                                          \
+        '  trap 0x0000000e Page Fault'                          \
+        '  err  0x00000006'                                     \
+      - '  eip  0x008.....'                                     \
+      - '  esp  0xaff.....'                                     \
+        'killed by kernel.'                                     \
+        'brkfreetest pass.'                                     \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+pts=15
+
+run_test -prog 'brktest'                                        \
+        'kernel_execve: pid = 2, name = "brktest".'             \
+        'I am going to eat out all the mem, MU HA HA!!.'        \
+        'I ate 5000 slots.'                                     \
+        'I ate 10000 slots.'                                    \
+        'I ate (at least) 41000000 byte memory.'                \
+        'I free all the memory.(0)'                             \
+        'brktest pass.'                                         \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'
 

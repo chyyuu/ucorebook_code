@@ -5,17 +5,18 @@
 
 #define MAX_ARGS            5
 
-static inline int
+static inline uint32_t
 syscall(int num, ...) {
     va_list ap;
     va_start(ap, num);
     uint32_t a[MAX_ARGS];
-    int i, ret;
+    int i;
     for (i = 0; i < MAX_ARGS; i ++) {
         a[i] = va_arg(ap, uint32_t);
     }
     va_end(ap);
 
+    uint32_t ret;
     asm volatile (
         "int %1;"
         : "=a" (ret)
@@ -58,6 +59,11 @@ sys_kill(int pid) {
 int
 sys_getpid(void) {
     return syscall(SYS_getpid);
+}
+
+int
+sys_brk(uintptr_t *brk_store) {
+    return syscall(SYS_brk, brk_store);
 }
 
 int

@@ -46,11 +46,13 @@ struct mm_struct {
     uintptr_t swap_address;
     atomic_t mm_count;
     lock_t mm_lock;
+    uintptr_t brk_start, brk;
 };
 
 #define RB_MIN_MAP_COUNT        32 // If the count of vma >32 then redblack tree link is used
 
 struct vma_struct *find_vma(struct mm_struct *mm, uintptr_t addr);
+struct vma_struct *find_vma_intersection(struct mm_struct *mm, uintptr_t start, uintptr_t end);
 struct vma_struct *vma_create(uintptr_t vm_start, uintptr_t vm_end, uint32_t vm_flags);
 void insert_vma_struct(struct mm_struct *mm, struct vma_struct *vma);
 
@@ -66,6 +68,7 @@ int mm_unmap(struct mm_struct *mm, uintptr_t addr, size_t len);
 int dup_mmap(struct mm_struct *to, struct mm_struct *from);
 void exit_mmap(struct mm_struct *mm);
 uintptr_t get_unmapped_area(struct mm_struct *mm, size_t len);
+int mm_brk(struct mm_struct *mm, uintptr_t addr, size_t len);
 
 int do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr);
 bool user_mem_check(struct mm_struct *mm, uintptr_t start, size_t len, bool write);
