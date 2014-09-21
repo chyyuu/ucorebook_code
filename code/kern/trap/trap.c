@@ -232,9 +232,7 @@ trap(struct trapframe *tf) {
 
         current->tf = otf;
         if (!in_kernel) {
-            if (current->flags & PF_EXITING) {
-                do_exit(-E_KILLED);
-            }
+            may_killed();
             if (current->need_resched) {
                 schedule();
             }

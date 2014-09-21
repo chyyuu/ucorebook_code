@@ -9,6 +9,7 @@
 #define SYS_wait            3
 #define SYS_exec            4
 #define SYS_clone           5
+#define SYS_exit_thread     9
 #define SYS_yield           10
 #define SYS_sleep           11
 #define SYS_kill            12
@@ -24,6 +25,10 @@
 /* SYS_fork flags */
 #define CLONE_VM            0x00000100  // set if VM shared between processes
 #define CLONE_THREAD        0x00000200  // thread group
+
+/* SYS_mmap flags */
+#define MMAP_WRITE          0x00000100
+#define MMAP_STACK          0x00000200
 
 #endif /* !__LIBS_UNISTD_H__ */
 

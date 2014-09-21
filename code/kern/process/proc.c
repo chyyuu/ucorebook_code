@@ -87,6 +87,9 @@ void kernel_thread_entry(void);
 void forkrets(struct trapframe *tf);
 void switch_to(struct context *from, struct context *to);
 
+static int __do_exit(void);
+static int __do_kill(struct proc_struct *proc, int error_code); 
+
 // alloc_proc - create a proc struct and init fields
 static struct proc_struct *
 alloc_proc(void) {
@@ -106,6 +109,7 @@ alloc_proc(void) {
         memset(proc->name, 0, PROC_NAME_LEN);
         proc->wait_state = 0;
         proc->cptr = proc->optr = proc->yptr = NULL;
+        list_init(&(proc->thread_group));
     }
     return proc;
 }
@@ -293,6 +297,25 @@ put_pgdir(struct mm_struct *mm) {
     free_page(kva2page(mm->pgdir));
 }
 
+// de_thread - delete this thread "proc" from thread_group list
+static void
+de_thread(struct proc_struct *proc) {
+    if (!list_empty(&(proc->thread_group))) {
+        bool intr_flag;
+        local_intr_save(intr_flag);
+        {
+            list_del_init(&(proc->thread_group));
+        }
+        local_intr_restore(intr_flag);
+    }
+}
+
+// next_thread - get the next thread "proc" from thread_group list
+static struct proc_struct *
+next_thread(struct proc_struct *proc) {
+    return le2proc(list_next(&(proc->thread_group)), thread_group);
+}
+
 // copy_mm - process "proc" duplicate OR share process "current"'s mm according clone_flags
 //         - if clone_flags & CLONE_VM, then "share" ; else "duplicate"
 static int
@@ -364,6 +387,15 @@ copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf) {
     proc->context.esp = (uintptr_t)(proc->tf);
 }
 
+// may_killed - check if current thread should be killed, should be called before go back to user space
+void
+may_killed(void) {
+    // killed by other process, already set exit_code and call __do_exit directly
+    if (current->flags & PF_EXITING) {
+        __do_exit();
+    }
+}
+
 // do_fork - parent process for a new child process
 //    1. call alloc_proc to allocate a proc_struct
 //    2. call setup_kstack to allocate a kernel stack for child process
@@ -384,6 +416,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     }
 
     proc->parent = current;
+    list_init(&(proc->thread_group));
     assert(current->wait_state == 0);
 
     if (setup_kstack(proc) != 0) {
@@ -400,6 +433,9 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
         proc->pid = get_pid();
         hash_proc(proc);
         set_links(proc);
+        if (clone_flags & CLONE_THREAD) {
+            list_add_before(&(current->thread_group), &(proc->thread_group));
+        }
     }
     local_intr_restore(intr_flag);
 
@@ -416,12 +452,12 @@ bad_fork_cleanup_proc:
     goto fork_out;
 }
 
-// do_exit - called by sys_exit
+// __do_exit - cause a thread exit (use do_exit, do_exit_thread instead)
 //   1. call exit_mmap & put_pgdir & mm_destroy to free the almost all memory space of process
 //   2. set process' state as PROC_ZOMBIE, then call wakeup_proc(parent) to ask parent reclaim itself.
 //   3. call scheduler to switch to other process
-int
-do_exit(int error_code) {
+static int
+__do_exit(void) {
     if (current == idleproc) {
         panic("idleproc exit.\n");
     }
@@ -446,29 +482,36 @@ do_exit(int error_code) {
         current->mm = NULL;
     }
     current->state = PROC_ZOMBIE;
-    current->exit_code = error_code;
 
     bool intr_flag;
-    struct proc_struct *proc;
+    struct proc_struct *proc, *parent;
     local_intr_save(intr_flag);
     {
-        proc = current->parent;
-        if (proc->wait_state == WT_CHILD) {
-            wakeup_proc(proc);
+        proc = parent = current->parent;
+        do {
+            if (proc->wait_state == WT_CHILD) {
+                wakeup_proc(proc);
+            }
+            proc = next_thread(proc);
+        } while (proc != parent);
+
+        if ((parent = next_thread(current)) == current) {
+            parent = initproc;
         }
+        de_thread(current);
         while (current->cptr != NULL) {
             proc = current->cptr;
             current->cptr = proc->optr;
 
             proc->yptr = NULL;
-            if ((proc->optr = initproc->cptr) != NULL) {
-                initproc->cptr->yptr = proc;
+            if ((proc->optr = parent->cptr) != NULL) {
+                parent->cptr->yptr = proc;
             }
-            proc->parent = initproc;
-            initproc->cptr = proc;
+            proc->parent = parent;
+            parent->cptr = proc;
             if (proc->state == PROC_ZOMBIE) {
-                if (initproc->wait_state == WT_CHILD) {
-                    wakeup_proc(initproc);
+                if (parent->wait_state == WT_CHILD) {
+                    wakeup_proc(parent);
                 }
             }
         }
@@ -476,7 +519,30 @@ do_exit(int error_code) {
     local_intr_restore(intr_flag);
 
     schedule();
-    panic("do_exit will not return!! %d.\n", current->pid);
+    panic("__do_exit will not return!! %d %d.\n", current->pid, current->exit_code);
+}
+
+// do_exit - kill a thread group, called by syscall or trap handler
+int
+do_exit(int error_code) {
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        list_entry_t *list = &(current->thread_group), *le = list;
+        while ((le = list_next(le)) != list) {
+            struct proc_struct *proc = le2proc(le, thread_group);
+            __do_kill(proc, error_code);
+        }
+    }
+    local_intr_restore(intr_flag);
+    return do_exit_thread(error_code);
+}
+
+// do_exit_thread - kill a single thread
+int
+do_exit_thread(int error_code) {
+    current->exit_code = error_code;
+    return __do_exit();
 }
 
 // load_icode -  called by sys_exec-->do_execve
@@ -632,17 +698,21 @@ bad_mm:
 int
 do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
     struct mm_struct *mm = current->mm;
-    if (!user_mem_check(mm, (uintptr_t)name, len, 0)) {
-        return -E_INVAL;
-    }
 
+    char local_name[PROC_NAME_LEN + 1];
+    memset(local_name, 0, sizeof(local_name));
     if (len > PROC_NAME_LEN) {
         len = PROC_NAME_LEN;
     }
 
-    char local_name[PROC_NAME_LEN + 1];
-    memset(local_name, 0, sizeof(local_name));
-    memcpy(local_name, name, len);
+    lock_mm(mm);
+    {
+        if (!copy_from_user(mm, local_name, name, len, 0)) {
+            unlock_mm(mm);
+            return -E_INVAL;
+        }
+    }
+    unlock_mm(mm);
 
     if (mm != NULL) {
         lcr3(boot_cr3);
@@ -664,6 +734,7 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
     if ((ret = load_icode(binary, size)) != 0) {
         goto execve_exit;
     }
+    de_thread(current);
     set_proc_name(current, local_name);
     return 0;
 
@@ -691,35 +762,43 @@ do_wait(int pid, int *code_store) {
         }
     }
 
-    struct proc_struct *proc;
+    struct proc_struct *proc, *cproc;
     bool intr_flag, haskid;
 repeat:
+    cproc = current;
     haskid = 0;
     if (pid != 0) {
         proc = find_proc(pid);
-        if (proc != NULL && proc->parent == current) {
-            haskid = 1;
-            if (proc->state == PROC_ZOMBIE) {
-                goto found;
-            }
+        if (proc != NULL) {
+            do {
+                if (proc->parent == cproc) {
+                    haskid = 1;
+                    if (proc->state == PROC_ZOMBIE) {
+                        goto found;
+                    }
+                    break;
+                }
+                cproc = next_thread(cproc);
+            } while (cproc != current);
         }
     }
     else {
-        proc = current->cptr;
-        for (; proc != NULL; proc = proc->optr) {
-            haskid = 1;
-            if (proc->state == PROC_ZOMBIE) {
-                goto found;
+        do {
+            proc = cproc->cptr;
+            for (; proc != NULL; proc = proc->optr) {
+                haskid = 1;
+                if (proc->state == PROC_ZOMBIE) {
+                    goto found;
+                }
             }
-        }
+            cproc = next_thread(cproc);
+        } while (cproc != current);
     }
     if (haskid) {
         current->state = PROC_SLEEPING;
         current->wait_state = WT_CHILD;
         schedule();
-        if (current->flags & PF_EXITING) {
-            do_exit(-E_KILLED);
-        }
+        may_killed();
         goto repeat;
     }
     return -E_BAD_PROC;
@@ -728,9 +807,7 @@ found:
     if (proc == idleproc || proc == initproc) {
         panic("wait idleproc or initproc.\n");
     }
-    if (code_store != NULL) {
-        *code_store = proc->exit_code;
-    }
+    int exit_code = proc->exit_code;
     local_intr_save(intr_flag);
     {
         unhash_proc(proc);
@@ -739,22 +816,40 @@ found:
     local_intr_restore(intr_flag);
     put_kstack(proc);
     kfree(proc);
-    return 0;
+
+    int ret = 0;
+    if (code_store != NULL) {
+        lock_mm(mm);
+        {
+            if (!copy_to_user(mm, code_store, &exit_code, sizeof(int))) {
+                ret = -E_INVAL;
+            }
+        }
+        unlock_mm(mm);
+    }
+    return ret;
 }
 
-// do_kill - kill process with pid by set this process's flags with PF_EXITING
+// __do_kill - kill a process with PCB by set this process's flags with PF_EXITING
+static int
+__do_kill(struct proc_struct *proc, int error_code) {
+    if (!(proc->flags & PF_EXITING)) {
+        proc->flags |= PF_EXITING;
+        proc->exit_code = error_code;
+        if (proc->wait_state & WT_INTERRUPTED) {
+            wakeup_proc(proc);
+        }
+        return 0;
+    }
+    return -E_KILLED;
+}
+
+// do_kill - kill process with pid
 int
-do_kill(int pid) {
+do_kill(int pid, int error_code) {
     struct proc_struct *proc;
     if ((proc = find_proc(pid)) != NULL) {
-        if (!(proc->flags & PF_EXITING)) {
-            proc->flags |= PF_EXITING;
-            if (proc->wait_state & WT_INTERRUPTED) {
-                wakeup_proc(proc);
-            }
-            return 0;
-        }
-        return -E_KILLED;
+        return __do_kill(proc, error_code);
     }
     return -E_INVAL;
 }
@@ -770,22 +865,23 @@ do_brk(uintptr_t *brk_store) {
     if (brk_store == NULL) {
         return -E_INVAL;
     }
-    if (!user_mem_check(mm, (uintptr_t)brk_store, sizeof(uintptr_t), 1)) {
+
+    uintptr_t brk;
+
+    lock_mm(mm);
+    if (!copy_from_user(mm, &brk, brk_store, sizeof(uintptr_t), 1)) {
+        unlock_mm(mm);
         return -E_INVAL;
     }
 
-    uintptr_t brk = *brk_store;
-
     if (brk < mm->brk_start) {
-        goto out;
+        goto out_unlock;
     }
     uintptr_t newbrk = ROUNDUP(brk, PGSIZE), oldbrk = mm->brk;
     assert(oldbrk % PGSIZE == 0);
     if (newbrk == oldbrk) {
-        goto out;
+        goto out_unlock;
     }
-
-    lock_mm(mm);
     if (newbrk < oldbrk) {
         if (mm_unmap(mm, newbrk, oldbrk - newbrk) != 0) {
             goto out_unlock;
@@ -801,9 +897,8 @@ do_brk(uintptr_t *brk_store) {
     }
     mm->brk = newbrk;
 out_unlock:
-    unlock_mm(mm);
-out:
     *brk_store = mm->brk;
+    unlock_mm(mm);
     return 0;
 }
 
@@ -826,6 +921,114 @@ do_sleep(unsigned int time) {
 
     del_timer(timer);
     return 0;
+}
+
+// do_mmap - add a vma with addr, len and flags(VM_READ/M_WRITE/VM_STACK)
+int
+do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
+    struct mm_struct *mm = current->mm;
+    if (mm == NULL) {
+        panic("kernel thread call mmap!!.\n");
+    }
+    if (addr_store == NULL || len == 0) {
+        return -E_INVAL;
+    }
+
+    int ret = -E_INVAL;
+
+    uintptr_t addr;
+
+    lock_mm(mm);
+    if (!copy_from_user(mm, &addr, addr_store, sizeof(uintptr_t), 1)) {
+        goto out_unlock;
+    }
+
+    uintptr_t start = ROUNDDOWN(addr, PGSIZE), end = ROUNDUP(addr + len, PGSIZE);
+    addr = start, len = end - start;
+
+    uint32_t vm_flags = VM_READ;
+    if (mmap_flags & MMAP_WRITE) vm_flags |= VM_WRITE;
+    if (mmap_flags & MMAP_STACK) vm_flags |= VM_STACK;
+
+    ret = -E_NO_MEM;
+    if (addr == 0) {
+        if ((addr = get_unmapped_area(mm, len)) == 0) {
+            goto out_unlock;
+        }
+    }
+    if ((ret = mm_map(mm, addr, len, vm_flags, NULL)) == 0) {
+        *addr_store = addr;
+    }
+out_unlock:
+    unlock_mm(mm);
+    return ret;
+}
+
+// do_munmap - delete vma with addr & len
+int
+do_munmap(uintptr_t addr, size_t len) {
+    struct mm_struct *mm = current->mm;
+    if (mm == NULL) {
+        panic("kernel thread call munmap!!.\n");
+    }
+    if (len == 0) {
+        return -E_INVAL;
+    }
+    int ret;
+    lock_mm(mm);
+    {
+        ret = mm_unmap(mm, addr, len);
+    }
+    unlock_mm(mm);
+    return ret;
+}
+
+// do_shmem - create a share memory with addr, len, flags(VM_READ/M_WRITE/VM_STACK)
+int
+do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
+    struct mm_struct *mm = current->mm;
+    if (mm == NULL) {
+        panic("kernel thread call mmap!!.\n");
+    }
+    if (addr_store == NULL || len == 0) {
+        return -E_INVAL;
+    }
+
+    int ret = -E_INVAL;
+
+    uintptr_t addr;
+
+    lock_mm(mm);
+    if (!copy_from_user(mm, &addr, addr_store, sizeof(uintptr_t), 1)) {
+        goto out_unlock;
+    }
+
+    uintptr_t start = ROUNDDOWN(addr, PGSIZE), end = ROUNDUP(addr + len, PGSIZE);
+    addr = start, len = end - start;
+
+    uint32_t vm_flags = VM_READ;
+    if (mmap_flags & MMAP_WRITE) vm_flags |= VM_WRITE;
+    if (mmap_flags & MMAP_STACK) vm_flags |= VM_STACK;
+
+    ret = -E_NO_MEM;
+    if (addr == 0) {
+        if ((addr = get_unmapped_area(mm, len)) == 0) {
+            goto out_unlock;
+        }
+    }
+    struct shmem_struct *shmem;
+    if ((shmem = shmem_create(len)) == NULL) {
+        goto out_unlock;
+    }
+    if ((ret = mm_map_shmem(mm, addr, vm_flags, shmem, NULL)) != 0) {
+        assert(shmem_ref(shmem) == 0);
+        shmem_destroy(shmem);
+        goto out_unlock;
+    }
+    *addr_store = addr;
+out_unlock:
+    unlock_mm(mm);
+    return ret;
 }
 
 // kernel_execve - do SYS_exec syscall to exec a user program called by user_main kernel_thread
@@ -866,7 +1069,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(swaptest);
+    KERNEL_EXECVE(mmaptest);
 #endif
     panic("user_main execve failed.\n");
 }

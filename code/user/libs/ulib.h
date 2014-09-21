@@ -1,6 +1,8 @@
 #ifndef __USER_LIBS_ULIB_H__
 #define __USER_LIBS_ULIB_H__
 
+#include <types.h>
+
 void __warn(const char *file, int line, const char *fmt, ...);
 void __panic(const char *file, int line, const char *fmt, ...) __attribute__((noreturn));
 
@@ -31,6 +33,10 @@ int kill(int pid);
 unsigned int gettime_msec(void);
 int getpid(void);
 void print_pgdir(void);
+int mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
+int munmap(uintptr_t addr, size_t len);
+int shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
+int clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 #endif /* !__USER_LIBS_ULIB_H__ */
 

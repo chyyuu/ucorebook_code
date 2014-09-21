@@ -318,16 +318,16 @@ osimg=$(make_print ucoreimg)
 swapimg=$(make_print swapimg)
 
 ## set default qemu-options
-qemuopts="-m 48m -hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
+qemuopts="-hda $osimg -drive file=$swapimg,media=disk,cache=writeback"
 
 ## set break-function, default is readline
 brkfun=readline
 
 default_check() {
-    pts=7
+    pts=3
     check_regexps "$@"
 
-    pts=3
+    pts=2
     quick_check 'check output'                                  \
         'check_alloc_page() succeeded!'                         \
         'check_pgdir() succeeded!'                              \
@@ -363,7 +363,7 @@ run_test -prog 'brkfreetest' -check default_check               \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-run_test -prog 'brktest'                                        \
+run_test -prog 'brktest' -check default_check                   \
         'kernel_execve: pid = 3, name = "brktest".'             \
         'I am going to eat out all the mem, MU HA HA!!.'        \
         'I ate 5000 slots.'                                     \
@@ -374,7 +374,7 @@ run_test -prog 'brktest'                                        \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'
 
-pts=10
+pts=5
 timeout=240
 
 run_test -prog 'sleep'                                          \
@@ -401,43 +401,179 @@ run_test -prog 'sleepkill'                                      \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
+pts=10
+timeout=
+
+run_test -prog 'mmaptest'                                       \
+        'kernel_execve: pid = 3, name = "mmaptest".'            \
+        'mmap step1 ok.'                                        \
+        'munmap step1 ok.'                                      \
+        'mmap step2 ok.'                                        \
+        'mmap step3 ok.'                                        \
+        'mumap step2 ok.'                                       \
+        'mmaptest pass.'                                        \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'shmemtest'                                      \
+        'kernel_execve: pid = 3, name = "shmemtest".'           \
+        'shmemtest pass.'                                       \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+show_part A
+
+pts=15
+
+run_test -prog 'threadtest'                                     \
+        'kernel_execve: pid = 3, name = "threadtest".'          \
+        'thread ok.'                                            \
+        'child ok.'                                             \
+        'threadtest pass.'                                      \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'threadfork'                                     \
+        'kernel_execve: pid = 3, name = "threadfork".'          \
+        'threadfork pass.'                                      \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'threadwork'                                     \
+        'kernel_execve: pid = 3, name = "threadwork".'          \
+        'thread ok.'                                            \
+      - 'i am 00, .., i got ........'                           \
+      - 'i am 07, .., i got ........'                           \
+      - 'i am 13, .., i got ........'                           \
+      - 'i am 19, .., i got ........'                           \
+      - 'i am 23, .., i got ........'                           \
+      - 'i am 29, .., i got ........'                           \
+      - 'i am 37, .., i got ........'                           \
+      - 'i am 43, .., i got ........'                           \
+      - 'i am 46, .., i got ........'                           \
+      - '  |-- PTE(00001) afd.....-afe..... 00001000 urw'       \
+      - '  |-- PTE(00001) afe.....-aff..... 00001000 urw'       \
+      - '  |-- PTE(00001) aff.....-b00..... 00001000 urw'       \
+        'thread wait ok.'                                       \
+        'loop init ok.'                                         \
+        'threadwork pass.'                                      \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'threadgroup1'                                   \
+        'kernel_execve: pid = 3, name = "threadgroup1".'        \
+        'thread ok.'                                            \
+        'yield 0.'                                              \
+        'yield 1.'                                              \
+        'yield 2.'                                              \
+        'exit thread group now.'                                \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'threadgroup2'                                   \
+        'kernel_execve: pid = 3, name = "threadgroup2".'        \
+        'thread ok.'                                            \
+        'yield 0.'                                              \
+        'yield 1.'                                              \
+        'yield 2.'                                              \
+        'exit thread group now.'                                \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+pts=20
+
+run_test -prog 'buggy_wait'                                     \
+        'kernel_execve: pid = 3, name = "buggy_wait".'          \
+        'child munmap ok.'                                      \
+        'buggy_wait pass.'                                      \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'buggy_wait2'                                    \
+        'kernel_execve: pid = 3, name = "buggy_wait2".'         \
+        'child fork ok.'                                        \
+        'buggy_wait2 pass.'                                     \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
 pts=25
+timeout=500
 
-run_test -prog 'cowtest'                                        \
-        'kernel_execve: pid = 3, name = "cowtest".'             \
-        'fork ok.'                                              \
-        'cowtest pass.'                                         \
+run_test -prog 'primer'                                         \
+        'kernel_execve: pid = 3, name = "primer".'              \
+        'sharemem init ok.'                                     \
+        '5 is a primer.'                                        \
+        '71 is a primer.'                                       \
+        '223 is a primer.'                                      \
+        '409 is a primer.'                                      \
+        '601 is a primer.'                                      \
+        '881 is a primer.'                                      \
+        '1163 is a primer.'                                     \
+        '1451 is a primer.'                                     \
+        '1733 is a primer.'                                     \
+        '2069 is a primer.'                                     \
+        '2383 is a primer.'                                     \
+        '2729 is a primer.'                                     \
+        '3079 is a primer.'                                     \
+        '3413 is a primer.'                                     \
+        '3767 is a primer.'                                     \
+        '4219 is a primer.'                                     \
+        '4561 is a primer.'                                     \
+        '4937 is a primer.'                                     \
+        '5387 is a primer.'                                     \
+        '5779 is a primer.'                                     \
+        '6247 is a primer.'                                     \
+        '6659 is a primer.'                                     \
+        '7069 is a primer.'                                     \
+        '7529 is a primer.'                                     \
+      - '...... 7 quit.'                                        \
+      - '...... 23 quit.'                                       \
+      - '...... 43 quit.'                                       \
+      - '...... 67 quit.'                                       \
+      - '...... 89 quit.'                                       \
+      - '...... 109 quit.'                                      \
+      - '...... 139 quit.'                                      \
+      - '...... 167 quit.'                                      \
+      - '...... 193 quit.'                                      \
+      - '...... 227 quit.'                                      \
+      - '...... 251 quit.'                                      \
+      - '...... 277 quit.'                                      \
+      - '...... 311 quit.'                                      \
+      - '...... 347 quit.'                                      \
+      - '...... 373 quit.'                                      \
+      - '...... 401 quit.'                                      \
+      - '...... 433 quit.'                                      \
+      - '...... 461 quit.'                                      \
+      - '...... 491 quit.'                                      \
+      - '...... 523 quit.'                                      \
+      - '...... 569 quit.'                                      \
+      - '...... 599 quit.'                                      \
+      - '...... 619 quit.'                                      \
+      - '...... 653 quit.'                                      \
+      - '...... 683 quit.'                                      \
+      - '...... 727 quit.'                                      \
+      - '...... 757 quit.'                                      \
+      - '...... 797 quit.'                                      \
+      - '...... 827 quit.'                                      \
+      - '...... 859 quit.'                                      \
+      - '...... 887 quit.'                                      \
+      - '...... 937 quit.'                                      \
+      - '...... 971 quit.'                                      \
+        'primer pass.'                                          \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-run_test -prog 'swaptest'                                       \
-        'kernel_execve: pid = 3, name = "swaptest".'            \
-        'buffer size = 00500000'                                \
-        'parent init ok.'                                       \
-      - 'child 0 fork ok, pid = [0-9]+.'                        \
-      - 'child 1 fork ok, pid = [0-9]+.'                        \
-      - 'child 2 fork ok, pid = [0-9]+.'                        \
-      - 'child 3 fork ok, pid = [0-9]+.'                        \
-      - 'child 4 fork ok, pid = [0-9]+.'                        \
-      - 'child 5 fork ok, pid = [0-9]+.'                        \
-      - 'child 6 fork ok, pid = [0-9]+.'                        \
-      - 'child 7 fork ok, pid = [0-9]+.'                        \
-      - 'child 8 fork ok, pid = [0-9]+.'                        \
-      - 'child 9 fork ok, pid = [0-9]+.'                        \
-        'check cow ok.'                                         \
-        'round 0'                                               \
-        'round 1'                                               \
-        'round 2'                                               \
-        'round 3'                                               \
-        'round 4'                                               \
-        'child check ok.'                                       \
-        'wait ok.'                                              \
-        'check buffer ok.'                                      \
-        'swaptest pass.'                                        \
-        'all user-mode processes have quit.'                    \
-        'init check memory pass.'                               \
-    ! - 'user panic at .*'
+show_part B
 
 ## print final-score
 show_final

@@ -55,9 +55,10 @@ struct proc_struct {
     char name[PROC_NAME_LEN + 1];               // Process name
     list_entry_t list_link;                     // Process link list 
     list_entry_t hash_link;                     // Process hash list
-    int exit_code;
-    uint32_t wait_state;
-    struct proc_struct *cptr, *yptr, *optr;
+    int exit_code;                              // return value when exit
+    uint32_t wait_state;                        // Process waiting state: the reason of sleeping
+    struct proc_struct *cptr, *yptr, *optr;     // Process's children, yonger sibling, Old sibling
+    list_entry_t thread_group;                  // the threads list including this proc which share resource (mem/file/sem...)
 };
 
 #define PF_EXITING                  0x00000001      // getting shutdown
@@ -83,14 +84,19 @@ char *get_proc_name(struct proc_struct *proc);
 void cpu_idle(void) __attribute__((noreturn));
 
 struct proc_struct *find_proc(int pid);
+void may_killed(void);
 int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf);
 int do_exit(int error_code);
+int do_exit_thread(int error_code);
 int do_execve(const char *name, size_t len, unsigned char *binary, size_t size);
 int do_yield(void);
 int do_wait(int pid, int *code_store);
-int do_kill(int pid);
+int do_kill(int pid, int error_code);
 int do_brk(uintptr_t *brk_store);
 int do_sleep(unsigned int time);
+int do_mmap(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
+int do_munmap(uintptr_t addr, size_t len);
+int do_shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags);
 
 #endif /* !__KERN_PROCESS_PROC_H__ */
 

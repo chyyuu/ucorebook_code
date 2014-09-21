@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <pmm.h>
 #include <clock.h>
+#include <error.h>
 #include <assert.h>
 
 static uint32_t
@@ -36,6 +37,23 @@ sys_exec(uint32_t arg[]) {
 }
 
 static uint32_t
+sys_clone(uint32_t arg[]) {
+    struct trapframe *tf = current->tf;
+    uint32_t clone_flags = (uint32_t)arg[0];
+    uintptr_t stack = (uintptr_t)arg[1];
+    if (stack == 0) {
+        stack = tf->tf_esp;
+    }
+    return do_fork(clone_flags, stack, tf);
+}
+
+static uint32_t
+sys_exit_thread(uint32_t arg[]) {
+    int error_code = (int)arg[0];
+    return do_exit_thread(error_code);
+}
+
+static uint32_t
 sys_yield(uint32_t arg[]) {
     return do_yield();
 }
@@ -49,12 +67,12 @@ sys_sleep(uint32_t arg[]) {
 static uint32_t
 sys_kill(uint32_t arg[]) {
     int pid = (int)arg[0];
-    return do_kill(pid);
+    return do_kill(pid, -E_KILLED);
 }
 
 static uint32_t
 sys_gettime(uint32_t arg[]) {
-    return ticks;
+    return (int)ticks;
 }
 
 static uint32_t
@@ -66,6 +84,29 @@ static uint32_t
 sys_brk(uint32_t arg[]) {
     uintptr_t *brk_store = (uintptr_t *)arg[0];
     return do_brk(brk_store);
+}
+
+static uint32_t
+sys_mmap(uint32_t arg[]) {
+    uintptr_t *addr_store = (uintptr_t *)arg[0];
+    size_t len = (size_t)arg[1];
+    uint32_t mmap_flags = (uint32_t)arg[2];
+    return do_mmap(addr_store, len, mmap_flags);
+}
+
+static uint32_t
+sys_munmap(uint32_t arg[]) {
+    uintptr_t addr = (uintptr_t)arg[0];
+    size_t len = (size_t)arg[1];
+    return do_munmap(addr, len);
+}
+
+static uint32_t
+sys_shmem(uint32_t arg[]) {
+    uintptr_t *addr_store = (uintptr_t *)arg[0];
+    size_t len = (size_t)arg[1];
+    uint32_t mmap_flags = (uint32_t)arg[2];
+    return do_shmem(addr_store, len, mmap_flags);
 }
 
 static uint32_t
@@ -86,12 +127,17 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_fork]              sys_fork,
     [SYS_wait]              sys_wait,
     [SYS_exec]              sys_exec,
+    [SYS_clone]             sys_clone,
+    [SYS_exit_thread]       sys_exit_thread,
     [SYS_yield]             sys_yield,
     [SYS_kill]              sys_kill,
     [SYS_sleep]             sys_sleep,
     [SYS_gettime]           sys_gettime,
     [SYS_getpid]            sys_getpid,
     [SYS_brk]               sys_brk,
+    [SYS_mmap]              sys_mmap,
+    [SYS_munmap]            sys_munmap,
+    [SYS_shmem]             sys_shmem,
     [SYS_putc]              sys_putc,
     [SYS_pgdir]             sys_pgdir,
 };

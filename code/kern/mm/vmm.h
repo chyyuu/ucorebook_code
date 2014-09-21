@@ -46,9 +46,14 @@ struct mm_struct {
     uintptr_t swap_address;
     atomic_t mm_count;
     lock_t mm_lock;
+    int locked_by;
     uintptr_t brk_start, brk;
     list_entry_t proc_mm_link;
 };
+
+void lock_mm(struct mm_struct *mm);
+void unlock_mm(struct mm_struct *mm);
+bool try_lock_mm(struct mm_struct *mm);
 
 #define le2mm(le, member)                   \
     to_struct((le), struct mm_struct, member)
@@ -77,6 +82,9 @@ int mm_brk(struct mm_struct *mm, uintptr_t addr, size_t len);
 int do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr);
 bool user_mem_check(struct mm_struct *mm, uintptr_t start, size_t len, bool write);
 
+bool copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len, bool writable);
+bool copy_to_user(struct mm_struct *mm, void *dst, const void *src, size_t len);
+
 static inline int
 mm_count(struct mm_struct *mm) {
     return atomic_read(&(mm->mm_count));
@@ -95,20 +103,6 @@ mm_count_inc(struct mm_struct *mm) {
 static inline int
 mm_count_dec(struct mm_struct *mm) {
     return atomic_sub_return(&(mm->mm_count), 1);
-}
-
-static inline void
-lock_mm(struct mm_struct *mm) {
-    if (mm != NULL) {
-        lock(&(mm->mm_lock));
-    }
-}
-
-static inline void
-unlock_mm(struct mm_struct *mm) {
-    if (mm != NULL) {
-        unlock(&(mm->mm_lock));
-    }
 }
 
 #endif /* !__KERN_MM_VMM_H__ */

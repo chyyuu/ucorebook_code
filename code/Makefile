@@ -1,4 +1,4 @@
-PROJ	:= 11
+PROJ	:= 12
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -256,7 +256,7 @@ TARGETS: $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
 
-QEMUOPTS = -m 48m -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback
+QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback
 
 .PHONY: qemu qemu-nox debug debug-nox
 qemu: $(UCOREIMG) $(SWAPIMG)

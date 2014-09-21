@@ -44,6 +44,37 @@ static void check_vmm(void);
 static void check_vma_struct(void);
 static void check_pgfault(void);
 
+void
+lock_mm(struct mm_struct *mm) {
+    if (mm != NULL) {
+        lock(&(mm->mm_lock));
+        if (current != NULL) {
+            mm->locked_by = current->pid;
+        }
+    }
+}
+
+void
+unlock_mm(struct mm_struct *mm) {
+    if (mm != NULL) {
+        unlock(&(mm->mm_lock));
+        mm->locked_by = 0;
+    }
+}
+
+bool
+try_lock_mm(struct mm_struct *mm) {
+    if (mm != NULL) {
+        if (!try_lock(&(mm->mm_lock))) {
+            return 0;
+        }
+        if (current != NULL) {
+            mm->locked_by = current->pid;
+        }
+    }
+    return 1;
+}
+
 // mm_create -  alloc a mm_struct & initialize it.
 struct mm_struct *
 mm_create(void) {
@@ -57,6 +88,7 @@ mm_create(void) {
         mm->swap_address = 0;
         set_mm_count(mm, 0);
         lock_init(&(mm->mm_lock));
+        mm->locked_by = 0;
         mm->brk_start = mm->brk = 0;
         list_init(&(mm->proc_mm_link));
     }
@@ -508,6 +540,24 @@ user_mem_check(struct mm_struct *mm, uintptr_t addr, size_t len, bool write) {
     return KERN_ACCESS(addr, addr + len);
 }
 
+bool
+copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len, bool writable) {
+    if (!user_mem_check(mm, (uintptr_t)src, len, writable)) {
+        return 0;
+    }
+    memcpy(dst, src, len);
+    return 1;
+}
+
+bool
+copy_to_user(struct mm_struct *mm, void *dst, const void *src, size_t len) {
+    if (!user_mem_check(mm, (uintptr_t)dst, len, 1)) {
+        return 0;
+    }
+    memcpy(dst, src, len);
+    return 1;
+}
+
 // check_vmm - check correctness of vmm
 static void
 check_vmm(void) {
@@ -628,7 +678,16 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
         panic("page fault in kernel thread: pid = %d, %d %08x.\n",
                 current->pid, error_code, addr);
     }
-    lock_mm(mm);
+
+    bool need_unlock = 1;
+    if (!try_lock_mm(mm)) {
+        if (current != NULL && mm->locked_by == current->pid) {
+            need_unlock = 0;
+        }
+        else {
+            lock_mm(mm);
+        }
+    }
 
     int ret = -E_INVAL;
     struct vma_struct *vma = find_vma(mm, addr);
@@ -734,7 +793,9 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     ret = 0;
 
 failed:
-    unlock_mm(mm);
+    if (need_unlock) {
+        unlock_mm(mm);
+    }
     return ret;
 }
 
