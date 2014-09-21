@@ -8,19 +8,14 @@
 #include <assert.h>
 #include <console.h>
 #include <vmm.h>
+#include <proc.h>
+#include <sched.h>
+#include <unistd.h>
 #include <sync.h>
 #include <monitor.h>
 #include <kdebug.h>
 
-#define TICK_NUM 100
-
-static void print_ticks() {
-    cprintf("%d ticks\n",TICK_NUM);
-#ifdef DEBUG_GRADE
-    cprintf("End of Test.\n");
-    panic("EOT: kernel seems ok.");
-#endif
-}
+#define TICK_NUM 30
 
 static struct gatedesc idt[256] = {{0}};
 
@@ -33,7 +28,7 @@ idt_init(void) {
     extern uintptr_t __vectors[];
     int i;
     for (i = 0; i < sizeof(idt) / sizeof(struct gatedesc); i ++) {
-        SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
+        SETGATE(idt[i], 1, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
     lidt(&idt_pd);
 }
@@ -65,6 +60,9 @@ trapname(int trapno) {
 
     if (trapno < sizeof(excnames)/sizeof(const char * const)) {
         return excnames[trapno];
+    }
+    if (trapno == T_SYSCALL) {
+        return "System call";
     }
     if (trapno >= IRQ_OFFSET && trapno < IRQ_OFFSET + 16) {
         return "Hardware Interrupt";
@@ -164,7 +162,9 @@ trap_dispatch(struct trapframe *tf) {
     case IRQ_OFFSET + IRQ_TIMER:
         ticks ++;
         if (ticks % TICK_NUM == 0) {
-            print_ticks();
+            cprintf("%d ticks\n",TICK_NUM);
+            assert(current != NULL);
+            current->need_resched = 1;
         }
         break;
     case IRQ_OFFSET + IRQ_COM1:
@@ -192,7 +192,25 @@ trap_dispatch(struct trapframe *tf) {
 
 void
 trap(struct trapframe *tf) {
-    // dispatch based on what type of trap occurred
-    trap_dispatch(tf);
+    // used for previous projects
+    if (current == NULL) {
+        trap_dispatch(tf);
+    }
+    else {
+        // keep a trapframe chain in stack
+        struct trapframe *otf = current->tf;
+        current->tf = tf;
+
+        bool in_kernel = trap_in_kernel(tf);
+
+        trap_dispatch(tf);
+
+        current->tf = otf;
+        if (!in_kernel) {
+            if (current->need_resched) {
+                schedule();
+            }
+        }
+    }
 }
 

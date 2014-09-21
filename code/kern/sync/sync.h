@@ -6,6 +6,7 @@
 #include <mmu.h>
 #include <assert.h>
 #include <atomic.h>
+#include <sched.h>
 
 static inline bool
 __intr_save(void) {
@@ -40,8 +41,10 @@ try_lock(lock_t *lock) {
 
 static inline void
 lock(lock_t *lock) {
-    // deadlock
-    while (!try_lock(lock));
+    // may deadlock
+    while (!try_lock(lock)) {
+        schedule();
+    }
 }
 
 static inline void

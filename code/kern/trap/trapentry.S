@@ -38,3 +38,9 @@ __trapret:
     addl $0x8, %esp
     iret
 
+.globl forkrets
+forkrets:
+    # set stack to this new process's trapframe
+    movl 4(%esp), %esp
+    jmp __trapret
+

@@ -11,6 +11,7 @@
 #include <vmm.h>
 #include <ide.h>
 #include <swap.h>
+#include <proc.h>
 
 int kern_init(void) __attribute__((noreturn));
 
@@ -33,6 +34,7 @@ kern_init(void) {
     idt_init();                 // init interrupt descriptor table
 
     vmm_init();                 // init virtual memory management
+    proc_init();                // init process table
 
     ide_init();                 // init ide devices
     swap_init();                // init swap
@@ -40,7 +42,6 @@ kern_init(void) {
     clock_init();               // init clock interrupt
     intr_enable();              // enable irq interrupt
 
-    /* do nothing */
-    while (1);
+    cpu_idle();                 // run idle process
 }
 

@@ -315,42 +315,40 @@ brkfun=readline
 
 ## check now!!
 
-quick_run 'Check COW'
+quick_run 'Check PROCESS'
 
 pts=5
-quick_check 'check pmm'                                         \
+quick_check 'check pmm & vmm'                                   \
     'check_alloc_page() succeeded!'                             \
     'check_pgdir() succeeded!'                                  \
     'check_boot_pgdir() succeeded!'                             \
-    'check_slab() succeeded!'
-
-pts=5
-quick_check 'check vmm'                                         \
+    'check_slab() succeeded!'                                   \
     'check_vma_struct() succeeded!'                             \
     'page fault at 0x00000100: K/W [no page found].'            \
     'check_pgfault() succeeded!'                                \
     'check_vmm() succeeded.'                                    \
     'check_swap() succeeded.'
 
-pts=5
-quick_check 'check ticks'                                       \
-    '++ setup timer interrupts'                                 \
-    '100 ticks'                                                 \
-    'End of Test.'
-
-pts=15
-quick_check 'check mm_swap'                                     \
+pts=10
+quick_check 'check mm_swap & mm_shm_swap'                       \
     'check_mm_swap: step1, mm_map ok.'                          \
     'check_mm_swap: step2, mm_unmap ok.'                        \
     'check_mm_swap: step3, exit_mmap ok.'                       \
     'check_mm_swap: step4, dup_mmap ok.'                        \
-    'check_mm_swap() succeeded.'
-
-pts=20
-quick_check 'check mm_shm_swap'                                 \
+    'check_mm_swap() succeeded.'                                \
     'check_mm_shm_swap: step1, share memory ok.'                \
     'check_mm_shm_swap: step2, dup_mmap ok.'                    \
     'check_mm_shm_swap() succeeded.'
+
+pts=5
+quick_check 'check ticks'                                       \
+    '++ setup timer interrupts'
+
+pts=30
+quick_check 'check initproc'                                    \
+    'this initproc, pid = 1, name = "init"'                     \
+    'To U: "Hello world!!".'                                    \
+    'To U: "en.., Bye, Bye. :)"'
 
 ## print final-score
 show_final
