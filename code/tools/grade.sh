@@ -314,7 +314,30 @@ brkfun=readline
 
 quick_run 'Check Output'
 
-pts=30
+pts=10
+quick_check 'check ring 0'                                      \
+    '0: @ring 0'                                                \
+    '0:  cs = 8'                                                \
+    '0:  ds = 10'                                               \
+    '0:  es = 10'                                               \
+    '0:  ss = 10'
+
+quick_check 'check switch to ring 3'                            \
+    '+++ switch to  user  mode +++'                             \
+    '1: @ring 3'                                                \
+    '1:  cs = 1b'                                               \
+    '1:  ds = 23'                                               \
+    '1:  es = 23'                                               \
+    '1:  ss = 23'
+
+quick_check 'check switch to ring 0'                            \
+    '+++ switch to kernel mode +++'                             \
+    '2: @ring 0'                                                \
+    '2:  cs = 8'                                                \
+    '2:  ds = 10'                                               \
+    '2:  es = 10'                                               \
+    '2:  ss = 10'
+
 quick_check 'check ticks'                                       \
     '++ setup timer interrupts'                                 \
     '100 ticks'                                                 \
