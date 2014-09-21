@@ -6,6 +6,7 @@
 #include <clock.h>
 #include <error.h>
 #include <assert.h>
+#include <sem.h>
 
 static uint32_t
 sys_exit(uint32_t arg[]) {
@@ -122,6 +123,31 @@ sys_pgdir(uint32_t arg[]) {
     return 0;
 }
 
+static uint32_t
+sys_sem_init(uint32_t arg[]) {
+    int value = (int)arg[0];
+    return ipc_sem_init(value);
+}
+
+static uint32_t
+sys_sem_post(uint32_t arg[]) {
+    sem_t sem_id = (sem_t)arg[0];
+    return ipc_sem_post(sem_id);
+}
+
+static uint32_t
+sys_sem_wait(uint32_t arg[]) {
+    sem_t sem_id = (sem_t)arg[0];
+    return ipc_sem_wait(sem_id);
+}
+
+static uint32_t
+sys_sem_get_value(uint32_t arg[]) {
+    sem_t sem_id = (sem_t)arg[0];
+    int *value_store = (int *)arg[1];
+    return ipc_sem_get_value(sem_id, value_store);
+}
+
 static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_exit]              sys_exit,
     [SYS_fork]              sys_fork,
@@ -140,6 +166,10 @@ static uint32_t (*syscalls[])(uint32_t arg[]) = {
     [SYS_shmem]             sys_shmem,
     [SYS_putc]              sys_putc,
     [SYS_pgdir]             sys_pgdir,
+    [SYS_sem_init]          sys_sem_init,
+    [SYS_sem_post]          sys_sem_post,
+    [SYS_sem_wait]          sys_sem_wait,
+    [SYS_sem_get_value]     sys_sem_get_value,
 };
 
 #define NUM_SYSCALLS        ((sizeof(syscalls)) / (sizeof(syscalls[0])))

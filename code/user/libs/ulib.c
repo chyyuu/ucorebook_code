@@ -88,6 +88,26 @@ shmem(uintptr_t *addr_store, size_t len, uint32_t mmap_flags) {
     return sys_shmem(addr_store, len, mmap_flags);
 }
 
+sem_t
+sem_init(int value) {
+    return sys_sem_init(value);
+}
+
+int
+sem_post(sem_t sem_id) {
+    return sys_sem_post(sem_id);
+}
+
+int
+sem_wait(sem_t sem_id) {
+    return sys_sem_wait(sem_id);
+}
+
+int
+sem_get_value(sem_t sem_id, int *value_store) {
+    return sys_sem_get_value(sem_id, value_store);
+}
+
 int __clone(uint32_t clone_flags, uintptr_t stack, int (*fn)(void *), void *arg);
 
 int

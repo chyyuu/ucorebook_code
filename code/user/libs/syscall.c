@@ -1,5 +1,5 @@
-#include <types.h>
 #include <unistd.h>
+#include <types.h>
 #include <stdarg.h>
 #include <syscall.h>
 
@@ -99,5 +99,25 @@ sys_putc(int c) {
 int
 sys_pgdir(void) {
     return syscall(SYS_pgdir);
+}
+
+sem_t
+sys_sem_init(int value) {
+    return syscall(SYS_sem_init, value);
+}
+
+int
+sys_sem_post(sem_t sem_id) {
+    return syscall(SYS_sem_post, sem_id);
+}
+
+int
+sys_sem_wait(sem_t sem_id) {
+    return syscall(SYS_sem_wait, sem_id);
+}
+
+int
+sys_sem_get_value(sem_t sem_id, int *value_store) {
+    return syscall(SYS_sem_get_value, sem_id, value_store);
 }
 

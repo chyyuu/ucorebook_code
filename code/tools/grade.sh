@@ -350,33 +350,152 @@ default_check() {
 
 ## check now!!
 
-run_test -prog 'threadtest' -check default_check                \
-        'kernel_execve: pid = 3, name = "threadtest".'          \
-        'thread ok.'                                            \
-        'child ok.'                                             \
-        'threadtest pass.'                                      \
+run_test -prog 'semtest' -check default_check                   \
+        'kernel_execve: pid = 3, name = "semtest".'             \
+      - 'sem_id = 0x07......'                                   \
+        'post ok.'                                              \
+        'wait ok.'                                              \
+        'wait semaphore...'                                     \
+        'sleep 0'                                               \
+        'sleep 1'                                               \
+        'sleep 2'                                               \
+        'sleep 3'                                               \
+        'sleep 4'                                               \
+        'sleep 5'                                               \
+        'sleep 6'                                               \
+        'sleep 7'                                               \
+        'sleep 8'                                               \
+        'sleep 9'                                               \
+        'hold semaphore.'                                       \
+        'fork pass.'                                            \
+        'semtest pass.'                                         \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
-run_test -prog 'threadfork' -check default_check                \
-        'kernel_execve: pid = 3, name = "threadfork".'          \
-        'threadfork pass.'                                      \
+run_test -prog 'semtest2' -check default_check                  \
+        'kernel_execve: pid = 3, name = "semtest2".'            \
+        'semtest2 test1:'                                       \
+        'child start 0.'                                        \
+        'child end.'                                            \
+        'parent start 0.'                                       \
+        'parent end.'                                           \
+        'child start 1.'                                        \
+        'child end.'                                            \
+        'parent start 1.'                                       \
+        'parent end.'                                           \
+        'child start 2.'                                        \
+        'child end.'                                            \
+        'child exit.'                                           \
+        'parent start 2.'                                       \
+        'parent end.'                                           \
+        'semtest2 test2:'                                       \
+        'child 0'                                               \
+        'parent 0'                                              \
+        'child 1'                                               \
+        'parent 1'                                              \
+        'child 2'                                               \
+        'parent 2'                                              \
+        'semtest2 pass.'                                        \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    ! - 'user panic at .*'
+
+run_test -prog 'spipetest' -check default_check                 \
+        'kernel_execve: pid = 3, name = "spipetest".'           \
+        'child write ok'                                        \
+        'parent read ok'                                        \
+        'spipetest pass'                                        \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'
 
 pts=20
+timeout=240
+
+run_test -prog 'spipetest2'                                     \
+        'kernel_execve: pid = 3, name = "spipetest2".'          \
+        '0 reads 200000'                                        \
+        '1 reads 200000'                                        \
+        '2 reads 200000'                                        \
+        '3 reads 200000'                                        \
+        '4 reads 200000'                                        \
+        '5 reads 200000'                                        \
+        '6 reads 200000'                                        \
+        '7 reads 200000'                                        \
+        '8 reads 200000'                                        \
+        '9 reads 200000'                                        \
+        'spipetest2 pass.'                                      \
+        'all user-mode processes have quit.'                    \
+        'init check memory pass.'                               \
+    !   'pipe is closed, too early.'                            \
+    !   'spipe close failed.'                                   \
+    ! - 'user panic at .*'
+
+pts=30
 timeout=500
-run_test -prog 'matrix'                                         \
-        'kernel_execve: pid = 3, name = "matrix".'              \
-        'fork ok.'                                              \
-        'pid 4 done!.'                                          \
-        'pid 7 done!.'                                          \
-        'pid 13 done!.'                                         \
-        'pid 17 done!.'                                         \
-        'pid 23 done!.'                                         \
-        'matrix pass.'                                          \
+
+run_test -prog 'primer2'                                        \
+        'kernel_execve: pid = 3, name = "primer2".'             \
+        'sharemem init ok.'                                     \
+        '5 is a primer.'                                        \
+        '71 is a primer.'                                       \
+        '223 is a primer.'                                      \
+        '409 is a primer.'                                      \
+        '601 is a primer.'                                      \
+        '881 is a primer.'                                      \
+        '1163 is a primer.'                                     \
+        '1451 is a primer.'                                     \
+        '1733 is a primer.'                                     \
+        '2069 is a primer.'                                     \
+        '2383 is a primer.'                                     \
+        '2729 is a primer.'                                     \
+        '3079 is a primer.'                                     \
+        '3413 is a primer.'                                     \
+        '3767 is a primer.'                                     \
+        '4219 is a primer.'                                     \
+        '4561 is a primer.'                                     \
+        '4937 is a primer.'                                     \
+        '5387 is a primer.'                                     \
+        '5779 is a primer.'                                     \
+        '6247 is a primer.'                                     \
+        '6659 is a primer.'                                     \
+        '7069 is a primer.'                                     \
+        '7529 is a primer.'                                     \
+      - '...... 7 quit.'                                        \
+      - '...... 23 quit.'                                       \
+      - '...... 43 quit.'                                       \
+      - '...... 67 quit.'                                       \
+      - '...... 89 quit.'                                       \
+      - '...... 109 quit.'                                      \
+      - '...... 139 quit.'                                      \
+      - '...... 167 quit.'                                      \
+      - '...... 193 quit.'                                      \
+      - '...... 227 quit.'                                      \
+      - '...... 251 quit.'                                      \
+      - '...... 277 quit.'                                      \
+      - '...... 311 quit.'                                      \
+      - '...... 347 quit.'                                      \
+      - '...... 373 quit.'                                      \
+      - '...... 401 quit.'                                      \
+      - '...... 433 quit.'                                      \
+      - '...... 461 quit.'                                      \
+      - '...... 491 quit.'                                      \
+      - '...... 523 quit.'                                      \
+      - '...... 569 quit.'                                      \
+      - '...... 599 quit.'                                      \
+      - '...... 619 quit.'                                      \
+      - '...... 653 quit.'                                      \
+      - '...... 683 quit.'                                      \
+      - '...... 727 quit.'                                      \
+      - '...... 757 quit.'                                      \
+      - '...... 797 quit.'                                      \
+      - '...... 827 quit.'                                      \
+      - '...... 859 quit.'                                      \
+      - '...... 887 quit.'                                      \
+      - '...... 937 quit.'                                      \
+      - '...... 971 quit.'                                      \
+        'primer2 pass.'                                         \
         'all user-mode processes have quit.'                    \
         'init check memory pass.'                               \
     ! - 'user panic at .*'

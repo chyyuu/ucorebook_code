@@ -29,8 +29,14 @@ typedef uint32_t uintptr_t;
 /* size_t is used for memory object sizes */
 typedef uintptr_t size_t;
 
+/* off_t is used for file offsets and lengths */
+typedef intptr_t off_t;
+
 /* used for page numbers */
 typedef size_t ppn_t;
+
+/* sem_t is used for semaphore id */
+typedef uintptr_t sem_t;
 
 /* *
  * Rounding operations (efficient when n is a power of 2)

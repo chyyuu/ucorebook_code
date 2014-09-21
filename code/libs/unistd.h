@@ -21,10 +21,15 @@
 #define SYS_shmem           22
 #define SYS_putc            30
 #define SYS_pgdir           31
+#define SYS_sem_init        40
+#define SYS_sem_post        41
+#define SYS_sem_wait        42
+#define SYS_sem_get_value   43
 
 /* SYS_fork flags */
 #define CLONE_VM            0x00000100  // set if VM shared between processes
 #define CLONE_THREAD        0x00000200  // thread group
+#define CLONE_SEM           0x00000400  // set if shared between processes
 
 /* SYS_mmap flags */
 #define MMAP_WRITE          0x00000100

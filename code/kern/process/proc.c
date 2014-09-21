@@ -10,8 +10,10 @@
 #include <trap.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <elf.h>
 #include <swap.h>
 
 /* ------------- process/thread mechanism design&implementation -------------
@@ -113,6 +115,7 @@ alloc_proc(void) {
         proc->rq = NULL;
         list_init(&(proc->run_link));
         proc->time_slice = 0;
+        proc->sem_queue = NULL;
     }
     return proc;
 }
@@ -390,6 +393,56 @@ copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf) {
     proc->context.esp = (uintptr_t)(proc->tf);
 }
 
+static int
+copy_sem(uint32_t clone_flags, struct proc_struct *proc) {
+    sem_queue_t *sem_queue, *old_sem_queue = current->sem_queue;
+
+    /* current is kernel thread */
+    if (old_sem_queue == NULL) {
+        return 0;
+    }
+
+    if (clone_flags & CLONE_SEM) {
+        sem_queue = old_sem_queue;
+        goto good_sem_queue;
+    }
+
+    int ret = -E_NO_MEM;
+    if ((sem_queue = sem_queue_create()) == NULL) {
+        goto bad_sem_queue;
+    }
+
+    down(&(old_sem_queue->sem));
+    ret = dup_sem_queue(sem_queue, old_sem_queue);
+    up(&(old_sem_queue->sem));
+
+    if (ret != 0) {
+        goto bad_dup_cleanup_sem;
+    }
+
+good_sem_queue:
+    sem_queue_count_inc(sem_queue);
+    proc->sem_queue = sem_queue;
+    return 0;
+
+bad_dup_cleanup_sem:
+    exit_sem_queue(sem_queue);
+    sem_queue_destroy(sem_queue);
+bad_sem_queue:
+    return ret;
+}
+
+static void
+put_sem_queue(struct proc_struct *proc) {
+    sem_queue_t *sem_queue = proc->sem_queue;
+    if (sem_queue != NULL) {
+        if (sem_queue_count_dec(sem_queue) == 0) {
+            exit_sem_queue(sem_queue);
+            sem_queue_destroy(sem_queue);
+        }
+    }
+}
+
 // may_killed - check if current thread should be killed, should be called before go back to user space
 void
 may_killed(void) {
@@ -429,8 +482,11 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     if (setup_kstack(proc) != 0) {
         goto bad_fork_cleanup_proc;
     }
-    if (copy_mm(clone_flags, proc) != 0) {
+    if (copy_sem(clone_flags, proc) != 0) {
         goto bad_fork_cleanup_kstack;
+    }
+    if (copy_mm(clone_flags, proc) != 0) {
+        goto bad_fork_cleanup_sem;
     }
     copy_thread(proc, stack, tf);
 
@@ -452,6 +508,8 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
 fork_out:
     return ret;
 
+bad_fork_cleanup_sem:
+    put_sem_queue(proc);
 bad_fork_cleanup_kstack:
     put_kstack(proc);
 bad_fork_cleanup_proc:
@@ -488,6 +546,7 @@ __do_exit(void) {
         }
         current->mm = NULL;
     }
+    put_sem_queue(current);
     current->state = PROC_ZOMBIE;
 
     bool intr_flag;
@@ -736,8 +795,14 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
         }
         current->mm = NULL;
     }
+    put_sem_queue(current);
 
-    int ret;
+    int ret = -E_NO_MEM;
+    if ((current->sem_queue = sem_queue_create()) == NULL) {
+        goto execve_exit;
+    }
+    sem_queue_count_inc(current->sem_queue);
+
     if ((ret = load_icode(binary, size)) != 0) {
         goto execve_exit;
     }
@@ -1076,7 +1141,7 @@ user_main(void *arg) {
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
-    KERNEL_EXECVE(matrix);
+    KERNEL_EXECVE(spipetest);
 #endif
     panic("user_main execve failed.\n");
 }

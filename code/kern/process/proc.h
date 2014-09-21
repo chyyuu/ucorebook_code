@@ -6,6 +6,7 @@
 #include <trap.h>
 #include <memlayout.h>
 #include <unistd.h>
+#include <sem.h>
 
 // process's state in his life cycle
 enum proc_state {
@@ -62,6 +63,7 @@ struct proc_struct {
     struct run_queue *rq;                       // running queue contains Process
     list_entry_t run_link;                      // the entry linked in run queue
     int time_slice;                             // time slice for occupying the CPU
+    sem_queue_t *sem_queue;                     // the user semaphore queue which process waits
 };
 
 #define PF_EXITING                  0x00000001      // getting shutdown
@@ -71,6 +73,7 @@ struct proc_struct {
 #define WT_TIMER                    (0x00000002 | WT_INTERRUPTED)  // wait timer
 #define WT_KSWAPD                    0x00000003                    // wait kswapd to free page
 #define WT_KSEM                      0x00000100                    // wait kernel semaphore
+#define WT_USEM                     (0x00000101 | WT_INTERRUPTED)  // wait user semaphore
 #define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
 
 #define le2proc(le, member)         \
